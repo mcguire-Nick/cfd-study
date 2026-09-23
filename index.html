@@ -1077,15 +1077,15 @@ function markRead(k){const rd=ST.s.rd=ST.s.rd||{};const d=DAYNUM();if(DAYNUM(rd[
    Today's session mixes (by phase) questions that are fading or due, new material in first-pass order,
    and a couple of confusable-pair items. Due items are ordered by projected exam-day recall, lowest first. */
 function pick(pool,n,pref){const a=shuffle(pool);if(pref)a.sort((x,y)=>pref(y)-pref(x));return a.slice(0,n)}
-function buildToday(n){n=n||20;const ph=phase();const share=[[.5,.4,.1],[.6,.3,.1],[.8,.1,.1],[1,0,0]][ph.n-1];
+function buildToday(n){n=n||planSize();const ph=phase();
  const dueQ=QS.filter(q=>due(q.id)).sort((a,b)=>rExam(a.id)-rExam(b.id));
  const topicOrder={};FP.forEach((k,i)=>topicOrder[k]=i);
- const newQ=QS.filter(q=>!seen(q.id)).sort((a,b)=>(topicOrder[a.k]??9e9)-(topicOrder[b.k]??9e9)||(a.v?1:0)-(b.v?1:0));
+ const newQ=ph.n===4?[]:QS.filter(q=>!seen(q.id)).sort((a,b)=>(topicOrder[a.k]??9e9)-(topicOrder[b.k]??9e9)||(a.v?1:0)-(b.v?1:0));
  const confQ=Object.keys(CI).filter(id=>!M[id]||rNow(id)<0.9).sort((a,b)=>(rExam(a)??0)-(rExam(b)??0));
  const out=[],used=new Set();const take=(arr,k)=>{let c=0;for(const x of arr){if(c>=k)break;const id=x.id||x;if(!used.has(id)){used.add(id);out.push(id);c++}}return c};
- const why={due:0,new:0,conf:0};
- why.conf=take(confQ,Math.round(n*share[2]));why.due=take(dueQ,Math.round(n*share[0]));why.new=take(newQ,n-out.length);
- if(out.length<n)why.due+=take(dueQ,n-out.length);if(out.length<n)why.due+=take(QS.filter(q=>seen(q.id)).sort((a,b)=>rExam(a.id)-rExam(b.id)),n-out.length);
+ const why={due:0,new:0,conf:0};const nc=n>=15?2:1;
+ why.due=take(dueQ,n-nc);why.new=take(newQ,n-nc-out.length);why.conf=take(confQ,n-out.length);
+ if(out.length<n)why.due+=take(QS.filter(q=>seen(q.id)).sort((a,b)=>rExam(a.id)-rExam(b.id)),n-out.length);
  return{ids:spread(out),why}}
 /* Interleave: avoid two questions from the same topic back to back. */
 function spread(ids){const a=shuffle(ids),out=[];while(a.length){let i=a.findIndex(id=>!out.length||topicOf(id)!==topicOf(out[out.length-1]));if(i<0)i=0;out.push(a.splice(i,1)[0])}return out}
@@ -1095,6 +1095,40 @@ function fadingSet(n){return QS.filter(q=>due(q.id)).sort((a,b)=>rExam(a.id)-rEx
 function simSet(){const last=id=>M[id]?M[id].l:-1;const P=MCQ.filter(q=>q.g==='P').sort((a,b)=>last(a.id)-last(b.id)||Math.random()-0.5),S=MCQ.filter(q=>q.g==='S').sort((a,b)=>last(a.id)-last(b.id)||Math.random()-0.5);
  return shuffle([...shuffle(P.slice(0,180)).slice(0,90),...shuffle(S.slice(0,120)).slice(0,60)].map(q=>q.id))}
 
+
+/* =====================================================================
+   PLANNER — works backward from the goal.
+   Simulates the memory model forward to exam day under a daily budget: on each study day it reviews whatever is due
+   (lowest projected exam-day recall first) and then introduces new questions in first-pass order, using expected
+   outcomes (the recall probability itself). The smallest budget whose simulated "solid on exam day" share meets the goal
+   is the plan. Recomputed daily and after each session; the simulation is an estimate and the plan adjusts as he goes.
+   ===================================================================== */
+const SEC_PER_Q=30;
+function studyDayPattern(wk){return i=>Math.floor((i+1)*wk/7)!==Math.floor(i*wk/7)}   // wk days spread evenly over each week
+function simulateTo(nPerDay,wk,pr,startTomorrow){pr=pr||PARAM();const E=examDay(),d0=DAYNUM();const on=studyDayPattern(wk);
+ const st={};QS.forEach(q=>{const m=M[q.id];if(m)st[q.id]={s:m.s,d:m.d,l:m.l,c:m.c}});
+ const order={};FP.forEach((k,i)=>order[k]=i);const fresh=QS.filter(q=>!M[q.id]).sort((a,b)=>(order[a.k]??9e9)-(order[b.k]??9e9)||(a.v?1:0)-(b.v?1:0)).map(q=>q.id);let fi=0;
+ const R=(t,s)=>Rf(t,s*pr.sc,pr.dk);
+ for(let day=d0+(startTomorrow?1:0),i=0;day<E;day++,i++){if(!on(i))continue;let budget=nPerDay;
+  const dues=[];for(const id in st){const x=st[id];if(R(day-x.l,x.s)<0.9)dues.push(id)}
+  dues.sort((a,b)=>R(E-st[a].l,st[a].s)-R(E-st[b].l,st[b].s));
+  for(const id of dues){if(budget<=0)break;const x=st[id];const t=day-x.l,r=R(t,x.s);   // r = chance he recalls it on that day (expected outcome)
+   const Sr=recS(x.d,x.s,r,3),Sf=forS(x.d,x.s,r);x.s=r*Sr+(1-r)*Sf;x.d=r*nextD(x.d,3)+(1-r)*nextD(x.d,1);x.l=day;x.c=x.c*r+r;budget--}
+  while(budget>0&&fi<fresh.length){const id=fresh[fi++];const p=P0;st[id]={s:p*W[2]+(1-p)*W[0],d:p*D0(3)+(1-p)*D0(1),l:day,c:p};budget--}}
+ let solid=0,know=0,seenN=0;QS.forEach(q=>{const x=st[q.id];if(!x){know+=P0;return}seenN++;const r=R(E-x.l,x.s);know+=r;if(r>=0.9&&x.c>=2.5)solid++});
+ return{solid:solid/QS.length,know:know/QS.length,seen:seenN}}
+function recentPace(){const lg=ST.s.lg||{},d=DAYNUM();let days=0,n=0;for(let i=1;i<=14;i++){const x=lg[d-i];if(x&&x[0]>=5){days++;n+=x[0]}}return days?{perDay:Math.round(n/days),wk:Math.max(1,Math.min(7,Math.round(days/2)))}:null}
+function computePlan(){const goal=(ST.s.goal||85)/100,wk=ST.s.wk||5;const d=DAYNUM();const done=((ST.s.lg||{})[d]||[0,0])[0]>=Math.min(20,(ST.s.pl&&ST.s.pl.v&&ST.s.pl.v.need)||20);
+ const cands=[5,10,15,20,25,30,40,50,60,70,80,100];let need=null,best=null;const results={};
+ for(const n of cands){const r=simulateTo(n,wk,null,done);results[n]=r;best=r;if(r.solid>=goal){need=n;break}}
+ const pace=recentPace();const atPace=pace?simulateTo(pace.perDay,pace.wk,null,done):null;
+ const alt=need==null?{wk7:simulateTo(40,7,null,done).solid,at40:results[40]?results[40].solid:null}:null;
+ return{day:d,goal,wk,need,max:best,results,pace,atPace,alt,days:examDay()-d}}
+function plan(){const p=ST.s.pl;const d=DAYNUM();if(p&&p.day===d&&p.goal===(ST.s.goal||85)/100&&p.wk===(ST.s.wk||5)&&p.n===NLOG)return p.v;const v=computePlan();ST.s.pl={day:d,goal:v.goal,wk:v.wk,n:NLOG,v};return v}
+function dailyTarget(){const v=plan();return v.need==null?80:v.need}
+function doneToday(){return((ST.s.lg||{})[DAYNUM()]||[0,0])[0]}
+function planSize(){const left=dailyTarget()-doneToday();return Math.max(10,Math.min(40,left))}
+const mins=n=>Math.max(1,Math.round(n*SEC_PER_Q/60));
 
 /* =====================================================================
    views-a.js — navigation shell, hints, the four tabs, build-my-own, map, notes, account
@@ -1116,7 +1150,8 @@ const HINTS={
  proj:'Exam-day projection: the same estimate for exam day if you stopped studying now. It only rises with study, so it works as a goal. The range shows how much depends on how fast you personally forget.',
  solid:'Solid = right on three separate days and still above 90% recall. Fading = it was solid, but enough time has passed that recall has slipped under 90%. That is exactly when a review does the most good.',
  exp:'Expected simulation score: what the model predicts for a 150-question timed simulation today (60% SOP, 40% Systems). After each real simulation it is nudged toward what you actually scored.',
- session:'Today’s session mixes questions that are fading, new material in first-pass order, and a couple of confusable-pair items. Mixing topics feels harder but leads to better recall than studying one topic at a time.',
+ session:'Today’s target comes from the plan: the model is run forward to exam day under different daily loads, and the smallest load that reaches your goal becomes the target. Each session mixes fading questions first, then new material in first-pass order, plus a couple of confusable-pair items — mixed practice beats one topic at a time.',
+ plan:'The plan simulates the memory model to exam day: on each study day it reviews what is due, then adds new questions, and counts how much would be solid on exam day. It tries daily loads from 5 to 100 and keeps the smallest that meets your goal. It is an estimate — it re-runs every day and after each session, so the target moves as your real results come in.',
  guessed:'Tap Guessed? when you weren’t sure. A lucky guess then counts as a weak pass instead of proof you know it, so the question comes back sooner.',
  week:'Study days: days with at least a short session. Five days a week gives plenty of spacing; a streak that breaks on one missed day would not help you learn more.',
  first:'First pass: every topic once, in order — read the card, then a five-question quiz. Topics you have already got solid are skipped.',
@@ -1128,15 +1163,16 @@ function hint(key){if(ST.s.nh)return null;return el('details',{class:'hint'},el(
 function whyLine(txt){if(ST.s.nh)return null;return el('details',{class:'hint why'},el('summary',{},'Why this works'),el('p',{text:txt}))}
 
 /* ---------- Today ---------- */
-function nextStep(){const ph=phase(),d=DAYNUM(),done=((ST.s.lg||{})[d]||[0,0])[0],sm=summary(),nx=fpNext();
- const today=()=>{const b=buildToday(20);startSession(b.ids,{title:'Today’s session',why:b.why})};
+function nextStep(){const ph=phase(),sm=summary(),nx=fpNext(),v=plan(),T=dailyTarget(),done=doneToday(),left=T-done,exD=new Date(ST.s.exam+'T12:00:00').toLocaleDateString(undefined,{month:'short',day:'numeric'});
+ const session=()=>{const b=buildToday(planSize());startSession(b.ids,{title:'Today’s session',why:b.why})};
  const comp=b=>[b.why.due?`${b.why.due} fading or due`:null,b.why.new?`${b.why.new} new`:null,b.why.conf?`${b.why.conf} confusable`:null].filter(Boolean).join(' · ');
+ const goalTxt=v.need==null?`Even ${v.results[100]?100:80} a day would reach about ${pct(v.max.solid)} solid by ${exD}, so today’s target is ${T}. See Progress for options.`:`${T} a day (about ${mins(T)} min) is the pace that reaches ${Math.round(v.goal*100)}% solid by ${exD}.`;
  if(ph.n===4)return{t:sm.fading?`${sm.fading} questions are fading. A short review brings them back — no new material this week.`:'Final week: a light review and the numbers sheet. No new material.',b:'Start a light review',f:()=>startSession(fadingSet(20),{title:'Light review'}),done:done>=20};
- if(done<20){const b=buildToday(20);return{t:sm.seen<20?'Twenty questions to start. Tap Guessed? whenever you aren’t sure.':`Today: ${comp(b)}.`,b:'Start today’s session',f:today,pre:b}}
- if(nx&&ph.n<=2&&fpToday()<fpPace().per)return{t:`Today’s session is done. Next on the first pass: ${tname(nx)}.`,b:'Continue first pass',f:fpGo,done:true};
- const gap=ph.n>=3?7:14;if(ph.n>=2&&sm.seen>=300&&now()-(ST.s.sim||0)>gap*DAY)return{t:'Today’s session is done. A timed simulation is due — it checks the model against your real score.',b:'Start simulation (150)',f:startSim,done:true};
- if(sm.fading>=10)return{t:`Today’s session is done. ${sm.fading} questions are still fading if you have more time.`,b:`Review fading (${Math.min(30,sm.fading)})`,f:()=>startSession(fadingSet(30),{title:'Fading review'}),done:true};
- return{t:'Today’s session is done. Extra time? Another mixed session or a drill.',b:'Another session',f:today,done:true}}
+ if(left>0){const b=buildToday(planSize());return{t:`${done?`${done} of ${T} done today. `:`Today’s target: ${T} questions. `}Next session: ${comp(b)}. ${goalTxt}`,b:done?`Start next ${b.ids.length}`:`Start today’s session (${b.ids.length})`,f:session,pre:b}}
+ if(nx&&ph.n<=2&&fpToday()<fpPace().per)return{t:`Today’s target of ${T} is done. Next on the first pass: ${tname(nx)}.`,b:'Continue first pass',f:fpGo,done:true};
+ const gap=ph.n>=3?7:14;if(ph.n>=2&&sm.seen>=300&&now()-(ST.s.sim||0)>gap*DAY)return{t:'Today’s target is done. A timed simulation is due — it checks the model against your real score.',b:'Start simulation (150)',f:startSim,done:true};
+ if(sm.fading>=10)return{t:`Today’s target of ${T} is done. ${sm.fading} questions are still fading if you have more time.`,b:`Review fading (${Math.min(30,sm.fading)})`,f:()=>startSession(fadingSet(30),{title:'Fading review'}),done:true};
+ return{t:`Today’s target of ${T} is done. Extra time? Another session or a drill.`,b:'Another session',f:session,done:true}}
 function startSim(){const ids=simSet();const pred=summary().exp;startSession(ids,{title:'Exam simulation',mode:'end',limit:ST.s.simMin,sim:1,pred})}
 function vToday(){const w=weeksLeft(),W_=Math.floor(w),D_=Math.round((w-W_)*7),ph=phase(),ns=nextStep(),sm=summary(),wd=weekDays(),onN=wd.filter(x=>x.on).length;
  const welcome=ST.s.welcomed?null:el('section',{class:'card welcome'},el('h2',{text:'Start here'}),el('p',{text:'One button a day is enough: it picks what to study. Everything else is under Learn, Progress and Settings.'}),FB?el('p',{class:'fine',text:'Sign in (Settings) so progress follows you between phone and computer.'}):null,el('div',{class:'row'},el('button',{class:'btn small',onclick:()=>{ST.s.welcomed=1;ST.s.u=now();queueSave();render()}},'Got it'),el('button',{class:'link',onclick:()=>go('how')},'How this works')));
@@ -1171,6 +1207,7 @@ function vCheckin(){const lg=ST.s.lg||{},d=DAYNUM();let days=0,n=0,r=0;for(let i
  const c=stageCounts(),prev=ST.s.cis,delta=k=>prev&&prev[k]!=null?c[k]-prev[k]:null,sg=v=>v==null?'':v>0?` (+${v})`:v<0?` (${v})`:' (±0)';const ph=phase(),tips=[],sm=summary();
  if(days<(ST.s.wk||5))tips.push(`${days} study day${days===1?'':'s'} this past week against a target of ${ST.s.wk||5}. Short sessions on more days beat one long one — the plan adjusts either way.`);
  if(n&&r/n<0.65)tips.push('Accuracy is under 65%. Read a topic’s card before drilling it again — quizzing unlearned material does little.');
+ const v=plan();if(v.need!=null)tips.push(`Plan: about ${v.need} questions a day on ${v.wk} days reaches ${Math.round(v.goal*100)}% solid by exam day.`);else tips.push(`The ${Math.round(v.goal*100)}% goal isn’t reachable at ${v.wk} days a week — see the Plan card.`);
  if(sm.fading>=10)tips.push(`${sm.fading} questions are fading. They come first in today’s session.`);
  if(ph.n<=2&&fpNext())tips.push(`First pass: ${fpCount()} of ${FP.length} done. About ${fpPace().per} a day keeps you on schedule.`);
  if(ph.n>=2&&now()-(ST.s.sim||0)>14*DAY)tips.push('A timed simulation this week would check the model against your real score.');
@@ -1186,6 +1223,13 @@ function vProgress(){const {hi,lo}=band(),sm=hi,goal=(ST.s.goal||85)/100,wd=week
   el('section',{class:'card'},el('div',{class:'arhead'},el('h2',{text:'Knowledge today'}),hint('know')),el('div',{class:'bignum',text:pct(sm.know)}),sparkline(),el('p',{class:'fine',text:`${sm.seen} of ${sm.total} questions seen · ${sm.fading} fading · ${sm.due-sm.fading} more due for review`}),sm.due?el('button',{class:'btn small',onclick:()=>startSession(fadingSet(30),{title:'Fading review'})},`Review fading (${Math.min(30,sm.due)})`):null),
   el('section',{class:'card'},el('div',{class:'arhead'},el('h2',{text:'Exam day'}),hint('proj')),el('div',{class:'ringrow'},ring(sm.solid,goal),el('div',{},el('p',{},`${pct(sm.solid)} of the material is solid for exam day, toward a goal of ${Math.round(goal*100)}%. `,hint('solid')),el('p',{class:'fine',text:`If you stopped now, projected recall on ${new Date(ST.s.exam+'T12:00:00').toLocaleDateString(undefined,{month:'long',day:'numeric'})} would be about ${pct(lo.proj)}–${pct(sm.proj)} across the bank.`}))),
    el('p',{class:'fine'},`Expected simulation score today: ${pct(lo.exp)}–${pct(sm.exp)}. `,hint('exp'))),
+  (()=>{const v=plan(),exD=new Date(ST.s.exam+'T12:00:00').toLocaleDateString(undefined,{month:'long',day:'numeric'}),g=Math.round(v.goal*100);const r20=v.results[20];
+   return el('section',{class:'card'},el('div',{class:'arhead'},el('h2',{text:'Plan'}),hint('plan')),
+    v.need!=null?el('p',{text:`To reach ${g}% solid by ${exD} at ${v.wk} study days a week: about ${v.need} questions a day (${mins(v.need)} min). That would put average recall on exam day near ${pct(v.results[v.need].know)}.`})
+    :el('p',{text:`At ${v.wk} study days a week, even ${Object.keys(v.results).pop()} questions a day reaches about ${pct(v.max.solid)} solid by ${exD}${v.alt&&v.alt.wk7!=null?` (about ${pct(v.alt.wk7)} with 7 days a week at 40 a day)`:''}. A goal of ${Math.max(10,Math.floor(v.max.solid*100/5)*5)}% is within reach, or add study days.`}),
+    v.atPace?el('p',{class:'fine',text:`At your recent pace — about ${v.pace.perDay} a day on ${v.pace.wk} day${v.pace.wk===1?'':'s'} a week — you would reach about ${pct(v.atPace.solid)} solid, with average recall near ${pct(v.atPace.know)}.`}):null,
+    r20?el('p',{class:'fine',text:`For scale: 20 a day would reach about ${pct(r20.solid)} solid and ${pct(r20.know)} average recall.`}):null,
+    el('p',{class:'fine',text:'Change the goal or study days in Settings; the plan re-runs every day.'}))})(),
   el('section',{class:'card'},el('div',{class:'arhead'},el('h2',{text:'Study days'}),hint('week')),el('div',{class:'dots big'},wd.map(x=>el('i',{class:x.on?'on':x.future?'fut':'',title:new Date(x.day*DAY).toLocaleDateString(undefined,{weekday:'short'})}))),el('p',{class:'fine',text:`${onN} of ${ST.s.wk||5} days this week${wh.tot?` · target met ${wh.hit} of the last ${wh.tot} week${wh.tot===1?'':'s'}`:''}. Change the target in Settings.`})),
   el('section',{class:'card'},el('h2',{text:'Topics'}),stageBar(c),stageLegend(c),el('div',{class:'row'},el('button',{class:'btn small',onclick:()=>go('map')},'Open progress map'),el('span',{class:'fine',text:`First pass: ${fpCount()} of ${FP.length}`}))),
   el('section',{class:'card'},el('h2',{text:'Needs the most work'}),wk.length?el('ol',{class:'weak'},wk.map(x=>el('li',{},el('span',{class:'wt'},el('span',{text:tname(x.k)}),el('span',{class:'pct',text:x.pct+'% right'})),el('div',{class:'wbtns'},el('button',{class:'btn small',onclick:()=>{CURCARD=x.k;go('card')}},'Card'),el('button',{class:'btn small',onclick:()=>startSession(pick(QS.filter(q=>q.k===x.k),15,q=>due(q.id)?2:seen(q.id)?1:0).map(q=>q.id),{title:'Drill: '+tname(x.k)})},'Drill'))))):el('p',{class:'muted',text:'This fills in after a few questions in each topic.'})),
@@ -1392,6 +1436,9 @@ function vHow(){const pr=PARAM(),fit=ST.s.fit;const sec=(t,ev,paras,refs)=>el('s
   sec('A right answer is weighed by how easily it could be guessed',
    'ours',['On a four-option question a blind guess lands one time in four; on a two-bucket drill, one time in two. The app asks how likely it is that you actually knew the answer given that you got it right, using the standard formula from Bayesian knowledge tracing, and credits the memory in proportion. Tapping Guessed? lowers the credit further. A recalled flashcard answer counts in full, since it can’t be guessed.','Applying that weighting inside FSRS is our adaptation rather than a published method, so it is checked against your timed simulations.'],
    'Corbett & Anderson 1995 (knowledge tracing); Rowland 2014 and Adesope et al. 2017 (question formats).'),
+  sec('The daily target works backward from your goal',
+   'ours',['The plan runs the memory model forward to exam day under different daily loads. On each simulated study day it reviews what is due, lowest projected recall first, then adds new questions in first-pass order, using expected outcomes. The smallest daily load whose simulated result meets your goal becomes today’s target. It re-runs every day and after every session, so a bad week raises the target and a good one lowers it — the same idea as a nutrition coach that recalculates from what actually happened rather than what was planned.','It is a projection built on the same model as everything else here, so it inherits the model’s uncertainty. Treat the target as the best current estimate, not a promise.'],
+   'Simulation over the FSRS-6 model; Lindsey et al. 2014 (model-driven review in a real course) for the general approach.'),
   sec('What the projections are',
    'ours',['Knowledge today is the average, over all questions, of the chance you would get each one right now. The exam-day projection is the same average on the exam date if you stopped studying today. “Solid for exam day” is the share of questions projected at 90% or better. Questions you have never seen count at your measured first-try rate on new material.','The range on each number comes from how much people differ in the shape of their forgetting curve. The expected simulation score assumes 60% SOP and 40% Systems Manual, includes lucky guesses, and is shifted toward your real results after each timed simulation.'],
    null),
