@@ -79,7 +79,7 @@ details.rev{background:var(--sheet);border:1px solid var(--rule);border-radius:6
 .welcome{border-color:var(--amber)}.chip.star{border-color:var(--ink);color:var(--ink)}.cardview h2.ct{font:700 16px var(--cond);letter-spacing:.04em;text-transform:uppercase;color:var(--muted);margin:14px 0 4px}.cardview h2.ct:first-child{margin-top:0}.cardview ul{margin:0;padding-left:20px}.cardview li{margin:5px 0;font-size:16px}.cardview .traps li{color:var(--red)}.cardview p{margin:0}.srcline{margin-top:16px!important;padding-top:10px;border-top:1px solid var(--rule);font-size:12.5px;line-height:1.45;color:var(--muted)}.wbtns{display:flex;gap:6px}.welcome ul,.help ul{margin:0;padding-left:20px}.welcome li,.help li{margin:6px 0;font-size:15.5px}.nt .nx{border-left:3px solid var(--amber);padding-left:10px;margin:6px 0 0}
 .scene p{margin:0 0 10px}.photo{width:100%;height:auto;border-radius:6px;display:block;margin:4px 0 10px}.plan summary{cursor:pointer;font-size:14px;color:var(--muted)}.diag{color:var(--ink);margin-top:6px}
 ol.ranked{margin:6px 0 12px;padding-left:22px}ol.ranked li{padding:4px 0;font-weight:500}ol.ranked.ok li{color:var(--green)}
-.toast{position:fixed;left:50%;bottom:calc(20px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:var(--ink);color:var(--sheet);padding:10px 16px;border-radius:6px;font-size:15px;z-index:20}
+.player{position:fixed;left:0;right:0;bottom:0;background:var(--ink);color:var(--sheet);padding:10px 16px calc(10px + env(safe-area-inset-bottom,0px));display:flex;justify-content:space-between;align-items:center;gap:12px;z-index:15}.player .plabel{font-size:12px;opacity:.75}.player .pnow{font:600 15px var(--body)}.player .btn{border-color:var(--sheet);color:var(--sheet)}.player .row{margin:0;flex-wrap:nowrap}.arhead{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:8px}.arhead h2{margin:0}.toast{position:fixed;left:50%;bottom:calc(20px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:var(--ink);color:var(--sheet);padding:10px 16px;border-radius:6px;font-size:15px;z-index:20}
 @media (max-width:520px){.count .big{font-size:68px}.opt{grid-template-columns:20px 22px 1fr;gap:0 7px}}
 @media (prefers-reduced-motion:reduce){*{transition:none!important}}
 </style>
@@ -223,6 +223,169 @@ x:["When two numbers feel similar, learn the pair together: 50 vs 300 ft, 35 vs 
 ];
 CARDS.push(...PATTERNS);
 
+CARDS.push(
+{k:"01-01-01",t:"Driving",w:"Every response and every movement of a Division vehicle.",
+n:["Samsara alerts: 30+ MPH over the limit for two consecutive pings, over 90 MPH at any time, idling 4+ hours, outside Franklin and contiguous counties","Signal X = non-emergency travel guidelines","Chock wheels front and back whenever stopped with the driver out of the seat (except normal bay parking)"],
+d:["Freeway as a shortcut: no lights and siren, travel with traffic, don't exceed the limit","Responding ON the freeway: lights and siren for stopped traffic, berm passing, and U-turn lanes — and don't cycle them on and off"],
+x:["Complete stop: blind intersections, when you can't account for all lanes, stopped school bus with flashing lights, unguarded railroad crossings","The officer is responsible for the driver's actions and may remove a driver who isn't operating safely"]},
+{k:"01-01-02",t:"Backing",w:"Any time a Division vehicle backs up.",
+n:["Driver and backer keep visual AND voice contact","Driver stops immediately if the backer can't be seen"],
+d:["With two or more members, the driver and the officer or partner(s) are held equally accountable"],
+x:["Backup cameras don't replace a backer"]},
+{k:"01-02-01",t:"Radio Procedures",w:"Every transmission.",
+n:["Order: who you're calling, who you are, then the message","Long message: 'Columbus Fire, from Engine 13', wait for 'Engine 13, go'","Non-Columbus talkgroup: mark enroute by voice AND press the MDC button"],
+d:["Notify the FAO whenever apparatus leaves for anything other than an FAO-dispatched run, and when it returns"],
+x:["Don't request to be added unless you'd likely be the first of that resource type; requests go on B# IC when a fireground talkgroup is assigned"]},
+{k:"01-03-04",t:"Establishing and Passing Command",w:"The first arriving officer's command decision.",
+n:["Command can be passed only ONCE","Mobile command is for nothing showing, quick containment, or awaiting the next officer"],
+d:["Fixed command is desirable unless conditions dictate otherwise","If mobile command won't conclude quickly: turn the crew over and establish fixed command, or pass command to a company not in the hazard zone"],
+x:["The officer who passes command keeps responsibility until the next officer formally assumes it","The next officer takes a C-A-N report, establishes fixed command, and gives a progress report"]},
+{k:"01-03-05",t:"Transfer of Command",w:"When a higher-ranking officer takes over.",
+n:["Brief covers: priorities and strategic goals, objectives assigned and still needing assignment, objectives achieved","Status Report goes out on the primary fireground talkgroup, or the ALL-CALL (ATG) if more than one is in use"],
+d:["Go to the Command Post, get the briefing, transmit the Status Report with strategy, IAP, and the new IC's name and rank, then reassign the former IC"],
+x:["Inside the city, a Columbus BC shall take command of all working incidents","If a Columbus officer has mobile command when a suburban Battalion Officer arrives, transfer it or establish fixed command"]},
+{k:"01-03-07",t:"Divisions and Groups",w:"Breaking the fireground into manageable pieces.",
+n:["Divisions are geographic, Groups are functional — same command level","The 3 T's: Team, Task(s), Talkgroup(s)","Floors are numbered Divisions (Division 4 = 4th floor)"],
+d:["Use them when span of control, coordination, or accountability demands it"],
+x:["Divisions don't work for Groups and Groups don't work for Divisions","An activity handled by one unit doesn't need a Division or Group"]},
+{k:"01-03-09",t:"Incident Safety Officer",w:"Safety oversight at any incident.",
+n:["The IC is the Safety Officer until the role is assumed or assigned"],
+d:["Imminent hazard: alter, suspend, or terminate the activity, then immediately inform the IC","Non-imminent hazard: work through the IC"],
+x:["The Safety Officer may bypass the chain of command when personnel are in imminent danger","The PIO coordinates media, but the IC decides sensitive topics like cause and victims' names"]},
+{k:"01-03-17",t:"The 360",w:"Every structure fire, right after the size-up from the vehicle.",
+n:["Determines: victims, fire location and volume, smoke, entry and egress, flow path, basement, hazards and utilities"],
+d:["If you can't complete it, say '360 NOT achieved' and say why"],
+x:["Never 'unremarkable'","Always announce the primary means of access and the utilities","Is there a basement, and is it involved?"]},
+{k:"01-03-18",t:"Size-Up Factors",w:"How the IC builds and updates the picture.",
+n:["Three information sources: pre-planning and familiarity, visual, reconnaissance"],
+d:["Identify which factors are critical at THIS incident — not every factor matters every time","Overcome the action instinct, then keep re-evaluating and adjusting the IAP"],
+x:["Factors are dynamic; the first read is not the final read"]},
+{k:"01-03-20",t:"Rescue Factors",w:"Any incident with occupants at risk.",
+n:["Order: most severely threatened, largest number, remainder of the fire area, exposed areas","Life safety is the number one reason to call additional resources"],
+d:["Direct all initial attack toward supporting rescue: control interior access, confine the fire, protect escape routes","Decide whether to remove victims from the fire or the fire from the victims"],
+x:["Normal interior means (stairs, halls, doorways) before ladders and platforms","Backfill search positions when a crew leaves with victims"]},
+{k:"01-03-22",t:"Risk Management",w:"How much risk is acceptable, and when.",
+n:["Significant risk only to save endangered lives","Reduce or avoid risk taken for property","No risk is acceptable when there's no possibility of saving lives or property"],
+d:["Defensive from the onset for advanced fire with no savable victims, low probability of salvageable extinguishment, or low-value/high-risk structures with low life hazard"],
+x:["Defensive steps: command post, evaluate spread and write off, collapse zones, key tactical positions, prioritize streams, big well-placed streams, resources, surround and drown"]},
+{k:"01-03-24",t:"Offensive to Defensive",w:"Changing strategy mid-incident.",
+n:["Announced on the ALL-CALL (ATG), repeated by the FAO","All personnel withdraw, then a PAR","Defensive priorities: life safety, then exposures, then the main body of fire"],
+d:["Situation Contained = forward progress stopped and on-scene resources can finish it"],
+x:["Not the same as an Emergency Evacuation (air horns 10-5-10), which is immediate and lets nothing be repositioned"]},
+{k:"01-03-26",t:"Water Supply and Hose Lines",w:"Getting and keeping water.",
+n:["Five items affecting hose line effectiveness: size, placement, speed, mobility, supply"],
+d:["Each engine assures its own uninterrupted, adequate supply by whatever means is appropriate — that doesn't always mean laying the line itself"],
+x:["Lay in when tank water may not control it or the next engine is delayed"]},
+{k:"01-03-28",t:"Forcible Entry",w:"Getting in, on fires and on service calls.",
+n:["Force the door at the latch, not the hinges, so you can control ventilation and close the opening"],
+d:["Lockouts and service runs with no apparent emergency: request law enforcement before entry, or entry may be refused","If nobody is there to secure the building after entry, notify CPD through the FAO"],
+x:["Forcing the door IS ventilation","Document the decision to force or not force in the EHR"]},
+{k:"01-03-29",t:"Calling More Resources",w:"When you're unsure whether to ask.",
+n:["If you're debating it, call for it — unneeded companies go back in service easily"],
+d:["Use the greater alarm mechanism rather than asking for extra companies","Number one trigger: victims exceeding the rescue, removal, and treatment capability on scene"],
+x:["Crisis management is letting the incident grow faster than the response to it"]},
+{k:"01-03-30",t:"Fire Deaths and Code One",w:"Any death found at an incident.",
+n:["Code One = a person dead on arrival or any other field death, regardless of circumstances","The FAO gives a Code One time"],
+d:["Fire deaths or life-threatening fire injuries: notify the BC regardless of circumstances, even at an auto fire; the BC requests an investigator"],
+x:["The Code One time is used by police as discovery time, or by EMS as the time resuscitation stopped"]},
+{k:"01-04-01",t:"Protective Clothing",w:"What to wear, and when.",
+n:["Retire structural PPE no more than 10 years from manufacture","Pump or aerial operation minimum: helmet and utility gloves","Approved shoulder patch: 4 inches maximum","Roadway non-suppression: hi-vis vest or jacket AND a fire or rescue helmet"],
+d:["Officers may allow PPE removal only when conditions no longer present a hazard; consult the Safety Officer in complex situations"],
+x:["Ballistic helmet and vest are never worn under or over turnouts during structural firefighting"]},
+{k:"01-04-02",t:"SCBA and IDLH",w:"Assumed IDLH atmospheres and SCBA discipline.",
+n:["Assumed IDLH: structure fires past the extinguisher stage, dumpster and vehicle fires, confined or below-grade space, gas leaks, HazMat/Bomb/WMD","Corrective lenses: spectacle kit or contacts — never temple bars through the seal"],
+d:["The only allowed compromise of SCBA integrity is emergency air from the low-pressure side of the RIT pack"],
+x:["Teams of two or more in close proximity; if one exits, another goes along","SCBA through suppression, salvage, and overhaul"]},
+{k:"01-04-06",t:"Water Rescue PPE",w:"Anywhere near the water.",
+n:["PPE within 15 feet of the water's edge, in a boat, or handling ropes or safety devices","Water rescue = static water over 5 feet deep, any flowing water, or flood water","In-water work limits: over 75°F 60 min · 40–75°F 40 min · under 40°F 20 min"],
+d:["Reach, Throw, Row, Go — in that order of increasing risk"],
+x:["Turnouts aren't worn on water responses except for cold protection","'Go' rescues are for swift water technicians only"]},
+{k:"01-04-09",t:"PASS Devices",w:"When the PASS goes on versus into alarm.",
+n:["ON: entering an IDLH area or investigation mode","ALARM: lost, trapped, disoriented, out of air or short of air to exit, incapacitated or injured, or feeling threatened"],
+d:["If you're in trouble, alarm it — don't wait to be missed"],
+x:["Turning it on isn't the same as activating the alarm"]},
+{k:"01-05-02",t:"Emergent Hazards and BZS",w:"Structural collapse risk to people or property.",
+n:["Emergent Hazard: strong possibility of immediate collapse onto another building, a roadway, or a sidewalk"],
+d:["The IC requests BZS immediately; a minimum of a Battalion Chief is dispatched when found during an inspection"],
+x:["SO-2 is dispatched for Emergent Hazards on non-residential property"]},
+{k:"01-06-01",t:"Incident Reports",w:"Documentation after every run.",
+n:["Completed before the end of the shift; public within 3 days by ordinance","Two signatures: the member(s) creating it and/or the IC","Firefighter injuries: casualty report within 48 hours","HazMat module: specialized resources used or a release over 55 gallons"],
+d:["The IC for reporting purposes is whoever is in charge at Situation Contained; a BC or higher may assign it to an on-scene company"],
+x:["U/UU/UUU means unknown, and only after all reasonable attempts to get the information"]},
+{k:"01-07-03",t:"P-400 Gas Monitor",w:"Atmospheric monitoring on any run.",
+n:["Oxygen deficient 19.5% · enriched 23.5% · CO 35 ppm · H2S 10 ppm · HCN 4.7 ppm · LEL 10%","Replace batteries below 4.8 volts","HCN is about 35 times more toxic than CO"],
+d:["An LEL alarm means treat the atmosphere as IDLH","Turn the meter on in clean air so it fresh-air calibrates"],
+x:["No alarm doesn't mean safe — carcinogens and ultrafine particles it can't detect are still there"]},
+{k:"02-01-08",t:"Rehab",w:"Keeping crews working safely.",
+n:["Automatic at 2nd alarm or higher and at working HazMat with entry","Triggers: two consecutive cylinders to the 50% warning, 75% of one cylinder, or 45 minutes of work","Rest at least 10 minutes; 8 oz of water first; sports drinks mixed 50/50","Food for incidents over 4 hours or at mealtimes"],
+d:["Rehab reports to the Safety Officer, or the IC if there isn't one"],
+x:["Nobody leaves rehab until the rehab supervisor releases them"]},
+{k:"02-02-04",t:"Alarm Classifications",w:"What gets sent on alarm calls.",
+n:["FAB (all water flow alarms): 1 Engine, 1 Ladder, 1 BC","FAH (over six stories): 2 Engines, 1 Ladder, 1 BC","Modified Alarm Response: approved by ES-2, closest appropriate company, emergency mode"],
+d:["'A' alarms may be cancelled or downgraded by the first-in company officer; 'B' alarms by the responding BC"],
+x:["Nothing showing at a sprinklered building: send someone to the annunciator"]},
+{k:"02-02-06",t:"Level II Staging",w:"Greater alarms and large incidents.",
+n:["Report to the Staging Area Manager in person on B# Staging","Crew intact, warning lights off, parked diagonally head-out","SAM advises the IC when resources are down to two engines and one ladder or less"],
+d:["The SAM picks a location away from the command post with room to maneuver, and keeps its own emergency lights on to be visible"],
+x:["If the IC designates an area but no manager, the FAO assigns the first-due engine"]},
+{k:"02-03-14",t:"Vehicle Accidents",w:"Crashes, extrication, and roadway safety.",
+n:["Three or more apparatus responding: give a brief initial radio report","Three or more medics assigned: EMS-10 is dispatched","High risk: multiple hydraulic tools at once, stabilization beyond step chocks, elevation change over 15 feet, high speed, multiple victims, heavy vehicles"],
+d:["Block with apparatus, wheels turned away from the scene, at least two members in full PPE, fire protection in place, search for additional victims, restore traffic as soon as it's safe"],
+x:["Vehicles may be moved to restore traffic even before police finish, once it's safe"]},
+{k:"02-03-16",t:"Vacant Premises",w:"Fires in vacant or marked buildings.",
+n:["Placard 24\u2033 x 24\u2033, red with white reflective stripes","Empty square = normal · one diagonal = hazards, extreme caution · X = consider exterior operations only","Symbols: R/O roof open (upper) · H/F holes in floor (lower) · S/M stairs missing (left) · F/E avoid fire escapes (right)"],
+d:["'NO RUSH' approach; structural stability drives offensive versus defensive","If you do go offensive: coordinate ventilation, two means of egress per floor, share hazards, minimum personnel"],
+x:["Unmarked vacants get the same caution as marked ones — the greatest life hazard is to firefighters"]},
+{k:"02-03-19",t:"Elevator Entrapment",w:"People stuck in an elevator.",
+n:["Dispatch: Engine, Ladder, Heavy Rescue, RS-10","Consider waiting if entrapment time plus technician ETA is under an hour with no medical needs","Hard reset: power off at least 30 seconds, lights left on","Car more than 2 feet off the landing: mechanically secure it"],
+d:["Lockout/tagout before any manual extrication"],
+x:["Shaft-way (hatch) rescue is for trained rescue technicians only, with adjoining cars locked out"]},
+{k:"02-03-23",t:"Fire Alarm Investigation",w:"Alarm panels and sprinkler activations.",
+n:["Acknowledge silences the panel only; Silence quiets building notification devices","Don't silence during an active evacuation until you've confirmed there's no hazard"],
+d:["Investigate the initiating device and mitigate before resetting","Wet or dry system activation, or a panel that won't reset: contact Prevention 18"],
+x:["Never place a system in 'test'"]},
+{k:"03-03-02",t:"HazMat Operations Level",w:"What a company officer does before HazMat 4 arrives.",
+n:["Assignment: 3 Engines, 2 Ladders, 1 Rescue, 2 BCs, 1 Medic, EMS Coordinator, Air Supply, SO-2, HazMat 4","Zones: Hot (entry and backup only) · Warm (decon corridor) · Cold (staging, EMS)"],
+d:["Approach upwind and uphill, isolate and deny entry, identify by placard and ERG, keep product out of drains, take defensive actions only","Evacuation if time permits; shelter-in-place for short-term releases or when moving people is more hazardous"],
+x:["Turnouts are not chemical protective clothing — quick in-and-out rescue only, never into a visible vapor cloud","Emergency decon = flush with water and remove the outer layer"]},
+{k:"03-04-05",t:"Active Violence Incidents",w:"Shootings and other active threats.",
+n:["Response: 3 Engines, 2 Ladders, 1 Rescue, 5 Medics, 2 EMSOs, 2 BCs, 1 Deputy Chief, plus EMS10, SO2, BS1, BS2, MC52, M890, CMD1","RTF: two FD members in ballistic gear with at least two LE officers","Zones: Hot (direct threat) · Warm (searched, threat possible) · Cold (secured)"],
+d:["First engine forms the Extraction Group; first BC establishes Unified Command with LE; first EMSO supervises the RTFs"],
+x:["RTFs work only in the Warm Zone — fire never enters the Hot Zone","Cover stops bullets; concealment only hides you"]},
+{k:"03-05-04",t:"Confined Space Rescue",w:"Manholes, tanks, vaults, silos.",
+n:["Rescue Permit (ES-223) is valid one hour","Atmospheric readings recorded at least every 5 minutes","Flammable atmosphere = 10% LEL or more","Retrieval with a backup system, 2:1 minimum, Class III harness, ½\u2033 tag line"],
+d:["First companies SHALL NOT enter — non-entry retrieval only, plus recon and isolation","Entry begins only when the IC, Safety Officer, and all rescue team members agree it's safe"],
+x:["If any part of the SCBA must come off to fit, use SABA instead","The atmosphere is hazardous until proven otherwise"]},
+{k:"04-03-20",t:"AWOL and Wellbeing Checks",w:"A member who doesn't show up.",
+n:["At least two contact attempts over 15 to 30 minutes using TeleStaff contacts"],
+d:["Then notify the BC or chain of command, who notifies the Deputy Chief","In-jurisdiction response: at minimum a BC (or EMSO), considering the closest apparatus, Signal X"],
+x:["Keep the apparatus staffed while you're making contact attempts"]},
+{k:"04-03-12",t:"Funerals and Honors",w:"Death of an active or retired member.",
+n:["Class 1: LODD from injury · Class 2: LODD from job-related illness · Class 3: active, non-job-related · Class 4: retiree","PI-15 funeral notice read on the PA three consecutive days","Class 1 graveside order: Last Alarm, Rifle Detail, Bugler, Flag Fold, Bell Service, Bagpiper"],
+d:["Notify the FAO, which notifies ES-2; ES-2 notifies the Honor Guard Commander (who sets the classification), the Chief, and ES-1"],
+x:["Badge shrouds worn horizontally are reserved for Classification 1","The family's wishes govern, and they must agree to Division participation"]},
+{k:"08-06-01",t:"Staffed Engine Fire Watch",w:"Standing by at a building with impaired systems.",
+n:["Staffing: 1 Lieutenant and 3 firefighters, BLS, from the overtime pick list","Alarm at the address: no fewer than two members investigate in full PPE and SCBA"],
+d:["On arrival: contact the building rep, position for the FDC and a hydrant, notify the FAO with address, crew, and expected duration","At a fire: uninterrupted water supply to the FDC first, then establish command and form an IAP"],
+x:["The IC may reassign the crew only after the BC arrives, command transfers, and accountability is established"]},
+{k:"SM 302",t:"Systems 302 · Minimum Staffing",w:"How many must be on each rig.",
+n:["Engines and ladders: 4 (may run with 3 from 0800 to 2000)","Rescues: 3","After 2000 with three: the absent member must be on Division business, in constant contact with the FAO, and able to respond immediately"],
+d:["Below minimum at roll call: notify the BC immediately and hold over an off-going member if needed","Deputy Chiefs balance battalions a duty day ahead, keeping about two members per battalion above minimum"],
+x:["The oncoming officer decides the need; the off-going officer makes the holdover assignment"]},
+{k:"SM 306",t:"Systems 306 · Acting Officers",w:"Filling in for an absent officer.",
+n:["A firefighter acting as Captain or Lieutenant is an 'Acting Lieutenant'","A Lieutenant acting as Station Captain functions as a Captain on the fireground","An officer acting as BC wears a white helmet with orange markings"],
+d:["Full authority of the position, but follow the policies of the officer being replaced","A member may be ordered into temporary compliance until a qualified replacement is available"],
+x:["Don't change standing procedures while acting","Acting officers are superseded when a duly appointed officer arrives"]},
+{k:"SM 712",t:"Systems 712 · Sick and Injury Leave",w:"Illness and on-duty injury procedures.",
+n:["Certify off duty at least 45 minutes before reporting","PR-5 by the second duty day (third for 40-hour members)","Injury leave request within 7 days to the Administrative Officer AND Local 67","FMLA packet after 3 consecutive duty days (15 days to respond); doctor's excuse after 6","From the 7th sick occurrence in a calendar year, the first two days of each are unpaid"],
+d:["On-duty injury: supervisor notifies the FAO and their own superior, makes journal entries, notifies ES-2 through channels, and secures the member's gear and vehicle"],
+x:["Feigning or falsifying illness is discipline for deceiving Division officials","Medical documentation now goes directly to Human Resources (2026)"]},
+{k:"SM 828",t:"Systems 826–846 · Reasonable Suspicion",w:"Suspecting a member is impaired on duty.",
+n:["Two supervisors must personally observe","Bases: physical signs, possession of alcohol or illegal drugs, or five or more lates or absences in a calendar year","No more than 12 oz of water while waiting; the member doesn't leave the room, eat, or smoke","Split specimen request within 72 hours; MRP may verify after 5 days without contact"],
+d:["Contact the DAC through ES-2 or the Bureau Head; EMS-11 transports and never alone; the member doesn't drive home","First positive with CBA compliance: 10-day suspension, Re-Entry Contract, follow-up testing"],
+x:["Advise the member of their right to Local 67 representation","Random testing is SO4 transport; reasonable suspicion is EMS-11"]}
+);
+
 const SCEN=[
 {id:"s1",title:"Attached garage, pickup fully involved",
 intro:"0215 hours. You're the officer on the first-due engine. A 1½-story wood-frame single-family home. A pickup truck in the attached garage is fully involved, fire has extended into the garage structure and roofline, and smoke is showing from the attic vent of the house. A neighbor says the family of four got out, but the grandmother sleeps upstairs and nobody has seen her.",
@@ -316,7 +479,7 @@ function simSet(){const P=QS.filter(q=>q.g==='P'),S=QS.filter(q=>q.g==='S');retu
 /* ---------- session ---------- */
 let SES=null, VIEW='dash', HIST=[];
 function go(v){if(v!==VIEW)HIST.push({v:VIEW,c:CURCARD});VIEW=v;render();window.scrollTo(0,0)}
-function back(){if(window.speechSynthesis)window.speechSynthesis.cancel();SPEAK=false;const p=HIST.pop();if(p){VIEW=p.v;if(p.c!=null)CURCARD=p.c}else VIEW='dash';if(VIEW!=='session'&&VIEW!=='results'){SES=null;clearInterval(timerH)}render();window.scrollTo(0,0)}
+function back(){if(QUEUE)stopQueue();if(window.speechSynthesis)window.speechSynthesis.cancel();SPEAK=false;const p=HIST.pop();if(p){VIEW=p.v;if(p.c!=null)CURCARD=p.c}else VIEW='dash';if(VIEW!=='session'&&VIEW!=='results'){SES=null;clearInterval(timerH)}render();window.scrollTo(0,0)}
 function startSession(ids,opt){if(!ids.length){toast('No questions match those filters.');return}SES=Object.assign({ids,i:0,ans:{},shown:{},mode:'instant',record:true,title:'Study session',t0:now(),limit:0},opt||{});if(SES.limit){SES.end=now()+SES.limit*60000}go('session')}
 function answer(id,oi){if(SES.done)return;if(SES.mode==='instant'&&SES.shown[id])return;SES.ans[id]=oi;if(SES.mode==='instant'){SES.shown[id]=1;if(SES.record){rec(id,oi===BY[id].a);queueSave()}}render()}
 function finish(){if(SES.done)return;SES.done=true;clearInterval(timerH);const missed=[];SES.ids.forEach(id=>{const ok=SES.ans[id]===BY[id].a;if(SES.mode==='end'&&SES.record&&SES.ans[id]!==undefined)rec(id,ok);if(!ok)missed.push(id)});if(SES.record){ST.s.lastMissed=missed;ST.s.u=now();queueSave()}SES.missed=missed;go('results')}
@@ -426,12 +589,24 @@ function cardText(c){return [c.t,'When it applies. '+c.w,'Key numbers. '+c.n.joi
 let SPEAK=false;
 function speak(t){try{const S=window.speechSynthesis;if(!S)return toast('This browser can’t read aloud.');if(S.speaking||SPEAK){S.cancel();SPEAK=false;render();return}const u=new SpeechSynthesisUtterance(t);u.rate=.95;u.onend=()=>{SPEAK=false;render()};SPEAK=true;S.speak(u);render()}catch(e){toast('This browser can’t read aloud.')}}
 function autoCard(k){const qs=QS.filter(q=>q.k===k);const seenT=new Set();const pts=[];qs.forEach(q=>{const e=(q.e||'').trim();if(e&&!seenT.has(e)){seenT.add(e);pts.push(e)}});return pts.slice(0,8)}
+
+let QUEUE=null;
+function speakQueue(keys,label){if(!window.speechSynthesis){toast('This browser can’t read aloud.');return}
+ QUEUE={keys:keys.slice(),i:0,label:label};playNext()}
+function playNext(){const S=window.speechSynthesis;if(!QUEUE)return;if(QUEUE.i>=QUEUE.keys.length){QUEUE=null;SPEAK=false;render();return}
+ const k=QUEUE.keys[QUEUE.i];const c=CARDBY[k];const t=c?cardText(c):((TOP[k]||k)+'. '+autoCard(k).join('. '));
+ const u=new SpeechSynthesisUtterance(t);u.rate=.95;u.onend=()=>{if(!QUEUE)return;QUEUE.i++;playNext()};SPEAK=true;S.speak(u);render()}
+function stopQueue(){if(window.speechSynthesis)window.speechSynthesis.cancel();QUEUE=null;SPEAK=false;render()}
+function playerBar(){if(!QUEUE)return null;const k=QUEUE.keys[QUEUE.i],c=CARDBY[k];
+ return el('div',{class:'player'},el('div',{class:'pinfo'},el('div',{class:'plabel',text:QUEUE.label+' · '+(QUEUE.i+1)+' of '+QUEUE.keys.length}),el('div',{class:'pnow',text:(c?c.t:(TOP[k]||k))})),
+  el('div',{class:'row'},el('button',{class:'btn small',onclick:()=>{if(window.speechSynthesis)window.speechSynthesis.cancel();QUEUE.i++;playNext()}},'Skip'),el('button',{class:'btn small',onclick:()=>{const kk=QUEUE.keys[QUEUE.i];stopQueue();CURCARD=kk;go('card')}},'Open card'),el('button',{class:'btn small',onclick:stopQueue},'Stop')))}
 function vLearn(){const groups={};QS.forEach(q=>{(groups[q.ar]=groups[q.ar]||new Set()).add(q.k)});
  return el('main',{class:'wrap'},el('h1',{text:'Learn the material'}),
   el('p',{class:'muted',text:'Read a field card, then answer five questions on it. Cards marked ★ are written summaries; the rest pull the key facts from that topic’s questions.'}),
   el('div',{class:'row'},el('button',{class:'btn primary',onclick:()=>{const k=CARDS.filter(c=>!c.k.startsWith('P-')).map(c=>c.k).sort((a,b)=>(topicPct(a)-topicPct(b)))[0];VIEW='card';CURCARD=k;render()}},'Start with my weakest card'),el('button',{class:'btn',onclick:()=>{VIEW='flash';FLASH=null;render()}},'Numbers flashcards')),
+  el('section',{class:'card'},el('h2',{text:'Listen'}),el('p',{class:'fine',text:'Have cards read to you back to back — good for the drive or the treadmill.'}),el('div',{class:'row'},el('button',{class:'btn',onclick:()=>speakQueue(CARDS.filter(c=>!c.k.startsWith('P-')).map(c=>c.k).sort((x,y)=>topicPct(x)-topicPct(y)).slice(0,5),'My 5 weakest cards')},'My 5 weakest'),el('button',{class:'btn',onclick:()=>speakQueue(CARDS.filter(c=>c.k.startsWith('P-')).map(c=>c.k),'Patterns and shortcuts')},'All patterns'),el('button',{class:'btn',onclick:()=>speakQueue(shuffle(CARDS.map(c=>c.k)),'All written cards')},'All written cards'))),
   el('section',{class:'card'},el('h2',{text:'Patterns and shortcuts'}),el('p',{class:'fine',text:'Rules that cover dozens of SOPs at once. Start here — it cuts down what you have to memorize.'}),el('div',{class:'chips'},CARDS.filter(c=>c.k.startsWith('P-')).map(c=>el('button',{class:'chip star',onclick:()=>{CURCARD=c.k;go('card')}},c.t.replace('Pattern · ',''))))),
-  Object.keys(groups).map(ar=>el('section',{class:'card'},el('h2',{text:ar}),el('div',{class:'chips'},[...groups[ar]].sort().map(k=>el('button',{class:'chip'+(CARDBY[k]?' star':''),onclick:()=>{CURCARD=k;go('card')}},(CARDBY[k]?'★ ':'')+(TOP[k]||k).replace(/^(SOP|Systems)\s/,'')))))))}
+  Object.keys(groups).map(ar=>el('section',{class:'card'},el('div',{class:'arhead'},el('h2',{text:ar}),(()=>{const ks=CARDS.filter(c=>!c.k.startsWith('P-')&&[...groups[ar]].includes(c.k)).map(c=>c.k);return ks.length?el('button',{class:'btn small',onclick:()=>speakQueue(ks,ar)},'Listen ('+ks.length+')'):null})()),el('div',{class:'chips'},[...groups[ar]].sort().map(k=>el('button',{class:'chip'+(CARDBY[k]?' star':''),onclick:()=>{CURCARD=k;go('card')}},(CARDBY[k]?'★ ':'')+(TOP[k]||k).replace(/^(SOP|Systems)\s/,'')))))))}
 function topicPct(k){const qs=QS.filter(q=>q.k===k);let a=0,r=0;qs.forEach(q=>{const p=ST.p[q.id];if(p){a+=p[0];r+=p[1]}});return a?r/a*100:50}
 let CURCARD=null,FLASH=null;
 function patKeys(c){const s=c&&c.s||'';const ks=new Set();(s.match(/\d\d-\d\d-\d\d(\.\d\d)?/g)||[]).forEach(x=>ks.add(x));(s.match(/\b\d{3}\b/g)||[]).forEach(x=>ks.add('SM '+x));return [...ks]}
@@ -460,7 +635,7 @@ function vFlash(){const pool=QS.filter(q=>q.n);
   FLASH.show?el('div',{class:'row'},el('button',{class:'btn primary',onclick:()=>mark(true)},'I knew it'),el('button',{class:'btn',onclick:()=>mark(false)},'Missed it')):el('button',{class:'btn primary big',onclick:()=>{FLASH.show=true;render()}},'Show answer'))}
 /* ---------- render ---------- */
 function render(){const root=app();root.innerHTML='';root.append(header());
- const v={dash:vDash,build:vBuild,session:vSession,results:vResults,notes:vNotes,settings:vSettings,scen:vScenList,scenario:vScenario,help:vHelp,account:vAccount,learn:vLearn,card:vCard,flash:vFlash}[VIEW]||vDash;root.append(v());badge();
+ const v={dash:vDash,build:vBuild,session:vSession,results:vResults,notes:vNotes,settings:vSettings,scen:vScenList,scenario:vScenario,help:vHelp,account:vAccount,learn:vLearn,card:vCard,flash:vFlash}[VIEW]||vDash;root.append(v());const pb=playerBar();if(pb)root.append(pb);badge();
  clearInterval(timerH);if(VIEW==='session'&&SES&&SES.end&&!SES.done){const tick=()=>{const t=$('#timer');const left=Math.max(0,SES.end-now());if(t){const m=Math.floor(left/60000),s=Math.floor(left%60000/1000);t.textContent=`${m}:${String(s).padStart(2,'0')} left`;t.classList.toggle('low',left<600000)}if(left<=0)finish()};tick();timerH=setInterval(tick,1000)}}
 testLocal();loadLocal();render();if(FB)initFirebase();else initRemote();
 })();
