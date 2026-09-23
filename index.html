@@ -981,6 +981,12 @@ function vNotes(){const ids=Object.keys(ST.n).filter(k=>ST.n[k].x&&BY[k]).sort((
 function vSettings(){const code=()=>btoa(unescape(encodeURIComponent(JSON.stringify({p:ST.p,n:ST.n,s:ST.s}))));const ta=el('textarea',{rows:'4',readonly:true});ta.value=code();const imp=el('textarea',{rows:'3',placeholder:'Paste a backup code here'});
  return el('main',{class:'wrap'},el('h1',{text:'Settings & backup'}),
   el('div',{class:'card form'},el('label',{},'Exam date',el('input',{type:'date',value:ST.s.exam,onchange:e=>{ST.s.exam=e.target.value;ST.s.u=now();queueSave()}})),el('label',{},'Exam simulation time limit (minutes)',el('input',{type:'number',min:'30',max:'300',value:ST.s.simMin,onchange:e=>{ST.s.simMin=Math.max(30,+e.target.value||150);ST.s.u=now();queueSave()}}))),
+  el('div',{class:'card form'},el('h2',{text:'Read-aloud voice'}),
+   (()=>{loadVoices();if(!VOICES.length)return el('p',{class:'fine',text:'No voices found yet. Open a card, tap Read aloud once, then come back — some phones only load voices after the first use.'});
+    const sel=el('select',{onchange:e=>{ST.s.voice=e.target.value;ST.s.u=now();queueSave()}},[el('option',{value:'',selected:!ST.s.voice},'Device default'),...VOICES.map(v=>el('option',{value:v.name,selected:ST.s.voice===v.name},v.name+' ('+v.lang+')'))]);
+    return el('label',{},'Voice',sel)})(),
+   el('label',{},'Speed',el('select',{onchange:e=>{ST.s.rate=+e.target.value;ST.s.u=now();queueSave()}},[['0.8','Slower'],['0.95','Normal'],['1.1','Faster'],['1.25','Fastest']].map(([v,t])=>el('option',{value:v,selected:String(ST.s.rate||0.95)===v},t)))),
+   el('button',{class:'btn small',onclick:()=>{if(window.speechSynthesis)window.speechSynthesis.cancel();const u=new SpeechSynthesisUtterance('Gas leak. Natural gas is five to fifteen percent and lighter than air. Ten percent of the lower explosive limit is a major emergency.');applyVoice(u);window.speechSynthesis.speak(u)}},'Test voice')),
   el('div',{class:'card'},el('h2',{text:'Backup code'}),el('p',{class:'fine',text:'Your progress syncs to your Claude account when you open this page signed in. This code is an extra backup you can keep anywhere.'}),ta,el('button',{class:'btn small',onclick:()=>{ta.select();try{navigator.clipboard.writeText(ta.value);toast('Copied')}catch(e){document.execCommand&&document.execCommand('copy')}}},'Copy code')),
   el('div',{class:'card'},el('h2',{text:'Restore from a code'}),imp,confirmBtn('Restore','Tap again: this merges into current progress',()=>{try{mergeIn(JSON.parse(decodeURIComponent(escape(atob(imp.value.trim())))));queueSave();toast('Restored');go('dash')}catch(e){toast('That code didn’t work')}})),
   el('div',{class:'card'},el('h2',{text:'Reset'}),confirmBtn('Clear all progress','Tap again to erase everything',()=>{ST=JSON.parse(JSON.stringify(DEF));ST.s.u=now();queueSave();go('dash')},'btn danger')))}
@@ -1016,8 +1022,11 @@ function vScenario(){const s=SC.s,st=s.steps[SC.i];const intro=el('div',{class:'
 /* ---------- learn: field cards, read aloud, flashcards ---------- */
 const CARDBY={};CARDS.forEach(c=>CARDBY[c.k]=c);
 function cardText(c){return [c.t,'When it applies. '+c.w,'Key numbers. '+c.n.join('. '),'Officer decisions. '+c.d.join('. '),'Traps. '+c.x.join('. ')].join('. ')}
-let SPEAK=false;
-function speak(t){try{const S=window.speechSynthesis;if(!S)return toast('This browser can’t read aloud.');if(S.speaking||SPEAK){S.cancel();SPEAK=false;render();return}const u=new SpeechSynthesisUtterance(t);u.rate=.95;u.onend=()=>{SPEAK=false;render()};SPEAK=true;S.speak(u);render()}catch(e){toast('This browser can’t read aloud.')}}
+let SPEAK=false,VOICES=[];
+function loadVoices(){try{VOICES=(window.speechSynthesis&&window.speechSynthesis.getVoices()||[]).filter(v=>/^en/i.test(v.lang))}catch(e){VOICES=[]}}
+function pickVoice(){if(!VOICES.length)loadVoices();const want=ST.s.voice;return VOICES.find(v=>v.name===want)||null}
+function applyVoice(u){const v=pickVoice();if(v)u.voice=v;u.rate=ST.s.rate||0.95;u.pitch=1}
+function speak(t){try{const S=window.speechSynthesis;if(!S)return toast('This browser can’t read aloud.');if(S.speaking||SPEAK){S.cancel();SPEAK=false;render();return}const u=new SpeechSynthesisUtterance(t);applyVoice(u);u.onend=()=>{SPEAK=false;render()};SPEAK=true;S.speak(u);render()}catch(e){toast('This browser can’t read aloud.')}}
 function autoCard(k){const qs=QS.filter(q=>q.k===k);const seenT=new Set();const pts=[];qs.forEach(q=>{const e=(q.e||'').trim();if(e&&!seenT.has(e)){seenT.add(e);pts.push(e)}});return pts.slice(0,8)}
 
 let QUEUE=null;
@@ -1025,7 +1034,7 @@ function speakQueue(keys,label){if(!window.speechSynthesis){toast('This browser 
  QUEUE={keys:keys.slice(),i:0,label:label};playNext()}
 function playNext(){const S=window.speechSynthesis;if(!QUEUE)return;if(QUEUE.i>=QUEUE.keys.length){QUEUE=null;SPEAK=false;render();return}
  const k=QUEUE.keys[QUEUE.i];const c=CARDBY[k];const t=c?cardText(c):((TOP[k]||k)+'. '+autoCard(k).join('. '));
- const u=new SpeechSynthesisUtterance(t);u.rate=.95;u.onend=()=>{if(!QUEUE)return;QUEUE.i++;playNext()};SPEAK=true;S.speak(u);render()}
+ const u=new SpeechSynthesisUtterance(t);applyVoice(u);u.onend=()=>{if(!QUEUE)return;QUEUE.i++;playNext()};SPEAK=true;S.speak(u);render()}
 function stopQueue(){if(window.speechSynthesis)window.speechSynthesis.cancel();QUEUE=null;SPEAK=false;render()}
 function playerBar(){if(!QUEUE)return null;const k=QUEUE.keys[QUEUE.i],c=CARDBY[k];
  return el('div',{class:'player'},el('div',{class:'pinfo'},el('div',{class:'plabel',text:QUEUE.label+' · '+(QUEUE.i+1)+' of '+QUEUE.keys.length}),el('div',{class:'pnow',text:(c?c.t:(TOP[k]||k))})),
@@ -1067,6 +1076,7 @@ function vFlash(){const pool=QS.filter(q=>q.n);
 function render(){const root=app();root.innerHTML='';root.append(header());
  const v={dash:vDash,build:vBuild,session:vSession,results:vResults,notes:vNotes,settings:vSettings,scen:vScenList,scenario:vScenario,help:vHelp,account:vAccount,learn:vLearn,card:vCard,flash:vFlash}[VIEW]||vDash;root.append(v());const pb=playerBar();if(pb)root.append(pb);badge();
  clearInterval(timerH);if(VIEW==='session'&&SES&&SES.end&&!SES.done){const tick=()=>{const t=$('#timer');const left=Math.max(0,SES.end-now());if(t){const m=Math.floor(left/60000),s=Math.floor(left%60000/1000);t.textContent=`${m}:${String(s).padStart(2,'0')} left`;t.classList.toggle('low',left<600000)}if(left<=0)finish()};tick();timerH=setInterval(tick,1000)}}
+try{if(window.speechSynthesis){loadVoices();window.speechSynthesis.onvoiceschanged=()=>{loadVoices();if(VIEW==='settings')render()}}}catch(e){}
 testLocal();loadLocal();render();if(FB)initFirebase();else initRemote();
 })();
 
