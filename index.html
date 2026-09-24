@@ -976,7 +976,7 @@ const SCEN2=[
 SCEN.push(...SCEN2);
 
 (function(){'use strict';
-const BUILD='2026-09-24 03:48';
+const BUILD='2026-09-24 04:11';
 /* =====================================================================
    CFD Lieutenant Study Tool — core.js
    Data tables, storage + sync, the memory model, scheduling, projections.
@@ -1350,6 +1350,10 @@ function vSettings(){const code=()=>btoa(unescape(encodeURIComponent(JSON.string
   el('div',{class:'card form'},el('h2',{text:'Sync'}),el('p',{class:'fine',text:syncText()+'.'}),FB?el('button',{class:'btn small',onclick:()=>go('account')},USER?'Account':'Sign in'):null),
   el('div',{class:'card form'},el('h2',{text:'Plan'}),el('label',{},'Exam date',el('input',{type:'date',value:ST.s.exam,onchange:e=>{ST.s.exam=e.target.value;ST.s.u=now();queueSave()}})),el('label',{},'Goal: share of material solid for exam day (%)',num('goal',50,100,85)),el('label',{},'Study days per week',num('wk',2,7,5)),el('label',{},'Exam simulation time limit (minutes)',num('simMin',30,300,150))),
   el('div',{class:'card form'},el('h2',{text:'Screen'}),el('label',{class:'tog'},el('input',{type:'checkbox',checked:ST.s.nh?false:true,onchange:e=>{ST.s.nh=e.target.checked?0:1;ST.s.u=now();queueSave()}}),'Show ⓘ hints and “why this works”'),el('label',{class:'tog'},el('input',{type:'checkbox',checked:ST.s.ng?false:true,onchange:e=>{ST.s.ng=e.target.checked?0:1;ST.s.u=now();queueSave()}}),'Show the “Guessed?” button on questions')),
+  el('div',{class:'card form'},el('h2',{text:'Hands-free listening'}),el('p',{class:'fine',text:'How the voice mode listens. Defaults suit an iPhone in a car; raise the listen window if it keeps giving up before you answer.'}),
+   (()=>{const vs=VS();const f=(k,l,min,max,step)=>el('label',{},l,el('input',{type:'number',min:String(min),max:String(max),step:String(step),value:vs[k],onchange:e=>{const v=Math.max(min,Math.min(max,+e.target.value||vs[k]));ST.s.vs=Object.assign({},vs,{[k]:v});ST.s.u=now();queueSave()}}));
+    return[f('pause','Pause after reading, before the mic opens (seconds)',0,3,0.1),f('win','Listen for an answer up to (seconds)',5,60,1),f('after','Wait after feedback before moving on (seconds)',2,20,1),f('restarts','Times to reopen the mic if the phone closes it early',1,12,1),
+     el('label',{class:'tog'},el('input',{type:'checkbox',checked:vs.hold?true:false,onchange:e=>{ST.s.vs=Object.assign({},vs,{hold:e.target.checked?1:0});ST.s.u=now();queueSave()}}),'Keep the microphone open for the whole session (helps on iPhone)')]})()),
   el('div',{class:'card form'},el('h2',{text:'Read-aloud voice'}),(()=>{loadVoices();if(!VOICES.length)return el('p',{class:'fine',text:'No voices found yet. Open a card, tap Read aloud once, then come back — some phones only load voices after the first use.'});const sel=el('select',{onchange:e=>{ST.s.voice=e.target.value;ST.s.u=now();queueSave()}},[el('option',{value:'',selected:!ST.s.voice},'Device default'),...VOICES.map(v=>el('option',{value:v.name,selected:ST.s.voice===v.name},v.name+' ('+v.lang+')'))]);return el('label',{},'Voice',sel)})(),
    el('label',{},'Speed',el('select',{onchange:e=>{ST.s.rate=+e.target.value;ST.s.u=now();queueSave()}},[['0.8','Slower'],['0.95','Normal'],['1.1','Faster'],['1.25','Fastest']].map(([v,t])=>el('option',{value:v,selected:String(ST.s.rate||0.95)===v},t)))),
    el('button',{class:'btn small',onclick:()=>{if(window.speechSynthesis)window.speechSynthesis.cancel();const u=new SpeechSynthesisUtterance('Gas leak. Natural gas is five to fifteen percent and lighter than air. Ten percent of the lower explosive limit is a major emergency.');applyVoice(u);window.speechSynthesis.speak(u)}},'Test voice')),
@@ -1437,6 +1441,11 @@ function vManual(){loadManual();const q=MQ.trim().toLowerCase();
    Built on the browser's speech synthesis and speech recognition (Chrome, Edge, Safari; not Firefox).
    ===================================================================== */
 const SR=window.SpeechRecognition||window.webkitSpeechRecognition||null;
+const IOS=/iPhone|iPad|iPod/.test(navigator.userAgent)||(navigator.platform==='MacIntel'&&navigator.maxTouchPoints>1);
+const STANDALONE=!!(window.navigator.standalone||(window.matchMedia&&matchMedia('(display-mode: standalone)').matches));
+const PWA_NO_VOICE=IOS&&STANDALONE;   // iPhone home-screen web apps cannot use speech recognition (WebKit limitation); Safari tabs can
+const VS=()=>Object.assign({pause:0.5,win:12,after:5,hold:1,restarts:6},ST.s.vs||{});   // hands-free settings (seconds)
+function openInSafari(){try{window.open(location.href.split('#')[0].split('?')[0]+'?voice=1','_blank')}catch(e){}}
 let VO=null, REC=null, WAKE=null, VOT=null, MIC=null;
 const VLOG=[];function vlog(m){const t=((now()-((VO&&VO.t0)||now()))/1000).toFixed(2);VLOG.push(t+'s '+m);if(VLOG.length>400)VLOG.shift()}
 function diagText(){return['CFD voice log',navigator.userAgent,'standalone: '+(window.navigator.standalone||matchMedia('(display-mode: standalone)').matches),'SpeechRecognition: '+(window.SpeechRecognition?'std':window.webkitSpeechRecognition?'webkit':'none'),'voices: '+((window.speechSynthesis&&window.speechSynthesis.getVoices().length)||0),'mic stream: '+(MIC?'held':'none'),''].concat(VLOG).join('\n')}
@@ -1460,22 +1469,22 @@ function say(text,cb){const S=window.speechSynthesis;if(!S||!VO){if(cb)cb();retu
  const next=()=>{if(!VO||VO.gen!==gen||VO.done)return;if(i>=chunks.length){vlog('say done');if(cb)cb();return}const u=new SpeechSynthesisUtterance(chunks[i++].trim());applyVoice(u);u.onend=next;u.onerror=e=>{vlog('tts error '+(e&&e.error));next()};S.speak(u)};next()}
 function stopListen(){clearTimeout(VOT);if(REC){try{REC.onresult=null;REC.onend=null;REC.onerror=null;REC.onstart=null;REC.abort()}catch(e){}REC=null}}
 /* listen once; cb gets an array of transcript alternatives, or null on silence/error */
-function listen(cb,ms,accept){if(!SR||!VO){cb(null);return}stopListen();const gen=VO.gen;VO.phase='listening';VO.heard='';render();let got=false,starts=0;const t0=now();const limit=ms||9000;
+function listen(cb,ms,accept){if(!SR||!VO){cb(null);return}stopListen();const gen=VO.gen;VO.phase='listening';VO.heard='';render();let got=false,starts=0,instant=0;const t0=now();const limit=ms||VS().win*1000;
  const finish=v=>{if(got||!VO||VO.gen!==gen)return;got=true;stopListen();cb(v)};
- const start=()=>{if(got||!VO||VO.gen!==gen)return;if(starts>=4||now()-t0>limit){vlog('listen: giving up after '+starts+' starts');finish(null);return}starts++;const ts=now();
+ const start=()=>{if(got||!VO||VO.gen!==gen)return;if(starts>=VS().restarts||now()-t0>limit){vlog('listen: giving up after '+starts+' starts');finish(null);return}if(instant>=3){vlog('listen: recognizer aborts instantly — not available here');finish('blocked');return}starts++;const ts=now();
   try{REC=new SR();REC.lang='en-US';REC.continuous=true;REC.interimResults=true;REC.maxAlternatives=5;
    REC.onstart=()=>vlog('rec start #'+starts);REC.onaudiostart=()=>vlog('rec audiostart');REC.onsoundstart=()=>vlog('rec soundstart');REC.onspeechstart=()=>vlog('rec speechstart');REC.onspeechend=()=>vlog('rec speechend');
    REC.onresult=e=>{const alts=[];let fin=false;for(let i=0;i<e.results.length;i++){const r=e.results[i];if(r.isFinal)fin=true;for(let j=0;j<r.length;j++)alts.push(r[j].transcript)}
     vlog('rec result '+(fin?'final':'interim')+': '+JSON.stringify(alts.slice(0,3)));if(VO&&VO.gen===gen){VO.heard=alts[0]||'';render()}
     if(fin)finish(alts);else if(accept&&accept(alts)){vlog('interim accepted');finish(alts)}};
    REC.onerror=e=>{vlog('rec error: '+(e&&e.error));if(e&&e.error==='not-allowed'){finish('denied');return}if(e&&(e.error==='no-speech'||e.error==='aborted'||e.error==='network'))setTimeout(start,250)};
-   REC.onend=()=>{const dt=now()-ts;vlog('rec end after '+dt+' ms');if(got||!VO||VO.gen!==gen)return;if(now()-t0<limit)setTimeout(start,dt<1500?300*starts:150);else finish(null)};
+   REC.onend=()=>{const dt=now()-ts;vlog('rec end after '+dt+' ms');if(dt<100)instant++;if(got||!VO||VO.gen!==gen)return;if(now()-t0<limit)setTimeout(start,dt<1500?300*starts:150);else finish(null)};
    REC.start()}catch(e){vlog('rec start threw: '+(e&&e.message));setTimeout(()=>finish(null),100)}};
  if(starts===0&&VO.quick)VO.quick=0;
  clearTimeout(VOT);VOT=setTimeout(()=>{vlog('listen: window over');finish(null)},limit+2500);
- setTimeout(start,VO.quick?50:450)}   // a short gap after speech so the phone’s audio session can switch from playback to recording
+ setTimeout(start,VO.quick?50:VS().pause*1000)}   // a short gap after speech so the phone’s audio session can switch from playback to recording
 /* ---------- the loops ---------- */
-async function holdMic(){try{if(MIC||!navigator.mediaDevices||!navigator.mediaDevices.getUserMedia)return;MIC=await navigator.mediaDevices.getUserMedia({audio:true});vlog('mic stream acquired')}catch(e){vlog('mic stream failed: '+(e&&e.name))}}
+async function holdMic(){try{if(!VS().hold||MIC||!navigator.mediaDevices||!navigator.mediaDevices.getUserMedia)return;MIC=await navigator.mediaDevices.getUserMedia({audio:true});vlog('mic stream acquired')}catch(e){vlog('mic stream failed: '+(e&&e.name))}}
 function dropMic(){try{if(MIC){MIC.getTracks().forEach(t=>t.stop());MIC=null}}catch(e){}}
 function startVoice(ids,opt){if(!window.speechSynthesis){toast('This browser can’t read aloud.');return}ids=ids.filter(id=>!isNB(id));if(!ids.length){toast('No questions to read.');return}
  VO=Object.assign({ids,i:0,right:0,ans:{},missed:[],phase:'idle',heard:'',tries:0,gen:1,record:true,title:'Voice session',fp:null,log:[],t0:now()},opt||{});VLOG.length=0;vlog('session start, '+ids.length+' items');wakeOn();holdMic();go('voice');if(VO.intro)say(VO.intro,()=>readQ());else readQ()}
@@ -1483,18 +1492,18 @@ function voOpts(id){return isConf(id)?CI[id].s.b:BY[id].o}
 function readQ(full){const V=VO;if(!V||V.done)return;V.gen++;const id=V.ids[V.i];const opts=voOpts(id);const stem=isConf(id)?CI[id].x.x+'. Which is it?':BY[id].q.replace(/_____/g,'blank');
  const text=(full===false?'':`Question ${V.i+1}. `+stem+' ')+opts.map((o,i)=>`${'ABCD'[i]}. ${o}.`).join(' ');V.tries=0;say(text,()=>askAnswer())}
 function askAnswer(){const V=VO;if(!V||V.done)return;const id=V.ids[V.i];const opts=voOpts(id);
- listen(alts=>{if(!VO||VO.done)return;if(alts==='denied'){V.phase='needtap';V.note='Microphone blocked. Tap an answer below, or allow the microphone in the browser settings.';render();return}
+ listen(alts=>{if(!VO||VO.done)return;if(alts==='denied'){V.phase='needtap';V.note='Microphone blocked. Tap an answer below, or allow the microphone in the browser settings.';render();return}if(alts==='blocked'){V.phase='needtap';V.blocked=1;V.note=PWA_NO_VOICE?'The installed app can’t use speech recognition on iPhone. Open the site in Safari for voice answers, or tap answers here.':'Speech recognition isn’t working in this browser. Tap answers here.';render();return}
   const r=alts?parseHeard(alts,opts):null;
   if(!r){V.tries++;vlog('no usable answer, try '+V.tries);if(V.tries>=3){V.phase='needtap';V.note='Didn’t catch that. Tap an answer, or tap “Listen again.”';render();return}say(V.tries===1?'Say alpha, bravo, charlie or delta, or the answer.':'Say alpha, bravo, charlie or delta.',()=>askAnswer());return}
   if(r.cmd==='repeat'){readQ();return}if(r.cmd==='options'){readQ(false);return}if(r.cmd==='stop'){endVoice();return}if(r.cmd==='next'){skipQ();return}if(r.cmd==='why'||r.cmd==='yes'||r.cmd==='no'){say('Answer first. Say A, B, C or D.',()=>askAnswer());return}
-  vlog('answer heard: '+'ABCD'[r.idx]);answerVoice(id,r.idx)},9000,alts=>!!parseHeard(alts,opts))}
+  vlog('answer heard: '+'ABCD'[r.idx]);answerVoice(id,r.idx)},VS().win*1000,alts=>!!parseHeard(alts,opts))}
 function answerVoice(id,i){const V=VO;if(!V||V.done||V.ans[id]!==undefined)return;V.gen++;stopListen();const ok=i===correctOf(id);V.ans[id]=i;if(ok)V.right++;else V.missed.push(id);
  if(V.record)recordAnswer(id,ok?'r':'w');const opts=voOpts(id);const q=BY[id];const expl=isConf(id)?(ok?(CI[id].x.w||''):confExplain(CI[id].x,i,opts)+' '+(CI[id].x.w||'')):q.e;
  V.expl=expl;V.phase='feedback';render();const fb=(ok?'Correct. ':`Not quite. The answer is ${'ABCD'[correctOf(id)]}, ${opts[correctOf(id)]}. `)+expl;
  say(fb,()=>afterFeedback())}
 function afterFeedback(){const V=VO;if(!V||V.done)return;listen(alts=>{if(!VO||VO.done)return;const r=alts?parseHeard(alts,[]):null;
   if(r&&r.cmd==='repeat'){say(V.expl,()=>afterFeedback());return}if(r&&r.cmd==='why'){const id=V.ids[V.i];const src=isConf(id)?CI[id].x.src:BY[id].src;say('Reference: '+src.replace(/-/g,' dash ')+'. '+V.expl,()=>afterFeedback());return}
-  if(r&&r.cmd==='stop'){endVoice();return}nextVoice()},4500,alts=>{const r=parseHeard(alts,[]);return!!(r&&r.cmd)})}
+  if(r&&r.cmd==='stop'){endVoice();return}nextVoice()},VS().after*1000,alts=>{const r=parseHeard(alts,[]);return!!(r&&r.cmd)})}
 function skipQ(){const V=VO;V.gen++;stopListen();nextVoice()}
 function nextVoice(){const V=VO;if(!V||V.done)return;V.gen++;stopListen();if(V.i<V.ids.length-1){V.i++;render();readQ();return}finishVoice()}
 function finishVoice(){const V=VO;if(!V||V.done)return;V.done=true;V.phase='done';stopListen();if(V.record){ST.s.lastMissed=V.missed.filter(id=>!isConf(id));ST.s.u=now();queueSave()}
@@ -1514,6 +1523,7 @@ function vVoice(){const V=VO;if(!V)return el('main',{class:'wrap'},el('p',{class
  const status={idle:'Starting…',speaking:'Reading aloud…',listening:'Listening — say A, B, C, D or the answer',feedback:'Reading the feedback…',needtap:V.note||'Tap an answer',done:'Finished'}[V.phase]||'';
  const canTap=V.phase==='listening'||V.phase==='needtap';
  return el('main',{class:'wrap voice'},el('div',{class:'shead'},el('div',{},el('div',{class:'stitle',text:V.title}),el('div',{class:'muted',text:V.done?`${V.right} of ${V.ids.length} right`:`Question ${V.i+1} of ${V.ids.length}`}))),
+  (V.blocked&&PWA_NO_VOICE)?el('div',{class:'card warn'},el('p',{text:'Voice answers don’t work inside the iPhone home-screen app — Apple doesn’t allow speech recognition there. It works in a Safari tab.'}),el('button',{class:'btn primary',onclick:openInSafari},'Open in Safari')):null,
   el('div',{class:'vstatus '+V.phase},el('span',{class:'vdot'}),el('span',{text:status})),V.heard?el('p',{class:'fine',text:'Heard: “'+V.heard+'”'}):null,
   V.done?[el('div',{class:'row'},V.fp&&fpNext()?el('button',{class:'btn primary big',onclick:voiceFpNext},'Next topic: '+tname(fpNext())):null,el('button',{class:'btn',onclick:()=>{const ids=V.ids;endVoice();startVoice(shuffle(ids),{title:V.title,record:V.record})}},'Again'),el('button',{class:'btn',onclick:()=>{endVoice();VO=null;setTab('today')}},'Done')),diagBox()]:
   [id?el('article',{class:'qcard'},isConf(id)?el('p',{class:'qtext',text:CI[id].x.x}):qText(q),el('div',{class:'opts'},opts.map((o,i)=>{const b=el('button',{class:'opt',disabled:!canTap,onclick:()=>{V.gen++;stopListen();answerVoice(id,i)}},el('span',{class:'let',text:'ABCD'[i]}),el('span',{class:'box',html:CHECK}),el('span',{class:'t',text:o}));if(V.ans[id]!==undefined){if(i===correctOf(id))b.classList.add('right');else if(V.ans[id]===i)b.classList.add('wrong')}return b})),V.phase==='feedback'&&V.expl?el('div',{class:'fb'+(V.ans[id]===correctOf(id)?'':' miss')},el('p',{text:V.expl})):null):null,
@@ -1524,9 +1534,10 @@ function diagBox(){return el('details',{class:'hint why diag'},el('summary',{},'
 function vVoiceMenu(){const ok=voiceSupported();const c=stageCounts();
  return el('main',{class:'wrap'},el('h1',{text:'Hands-free'}),el('p',{class:'muted',text:'The app reads a question and its choices, you answer out loud, it reads the feedback and moves on. Good for the drive to work — keep the phone unlocked and use the car’s microphone if you have it.'}),
   ok?null:el('div',{class:'card warn'},el('p',{text:window.speechSynthesis?'This browser can read aloud but can’t listen. Use Chrome, Edge or Safari for voice answers; here you can still listen and tap.':'This browser can’t read aloud.'})),
+  PWA_NO_VOICE?el('div',{class:'card warn'},el('h2',{text:'Use Safari for voice'}),el('p',{text:'The home-screen app can read aloud, but iPhone doesn’t let it hear you — Apple blocks speech recognition in installed web apps. Tap below to open the site in Safari; voice mode works there. Sign in on both so progress stays in sync.'}),el('button',{class:'btn primary',onclick:openInSafari},'Open in Safari')):null,
   el('section',{class:'card'},el('h2',{text:'Voice session'}),el('p',{class:'fine',text:'Twenty questions from today’s mix — fading first, then new.'}),el('button',{class:'btn primary big',onclick:()=>{const b=buildToday(20);startVoice(b.ids,{title:'Voice session'})}},'Start voice session (20)'),el('div',{class:'row'},el('button',{class:'btn',onclick:()=>startVoice(fadingSet(20),{title:'Voice: fading review'})},'Fading only'),el('button',{class:'btn',onclick:()=>startVoice(shuffle(Object.keys(CI)).slice(0,15),{title:'Voice: confusable pairs'})},'Confusable pairs'))),
   el('section',{class:'card'},el('h2',{text:'Voice first pass'}),el('p',{class:'fine',text:`Reads the next topic, then quizzes it, then asks whether to go on. ${fpCount()} of ${FP.length} topics done.`}),el('label',{class:'tog'},el('input',{type:'checkbox',checked:!!ST.s.vfull,onchange:e=>{ST.s.vfull=e.target.checked?1:0;ST.s.u=now();queueSave()}}),'Read the full manual section instead of the card summary (much longer)'),fpNext()?el('button',{class:'btn primary',onclick:voiceFpNext},'Start: '+tname(fpNext())):el('p',{text:'First pass complete.'})),
-  el('section',{class:'card'},el('h2',{text:'Tips'}),el('ul',{},[ 'Single letters are the hardest thing for speech recognition to hear. “Alpha, bravo, charlie, delta” or “one, two, three, four” work best.','You can also just say the answer — “three hundred feet,” “the Battalion Chief.”','Say “repeat” to hear the question again, “why” for the reference and explanation, “stop” to end.','If it stops listening, tap “Listen again” or tap the answer. Some phones need one tap to allow the microphone the first time.','The phone must stay unlocked; the app asks it to keep the screen on.'].map(t=>el('li',{text:t})))))}
+  el('section',{class:'card'},el('h2',{text:'Tips'}),el('p',{class:'fine',text:`Listening settings (Settings → Hands-free listening): pause before the mic opens ${VS().pause}s · listen up to ${VS().win}s · wait after feedback ${VS().after}s.`}),el('ul',{},[ 'Single letters are the hardest thing for speech recognition to hear. “Alpha, bravo, charlie, delta” or “one, two, three, four” work best.','You can also just say the answer — “three hundred feet,” “the Battalion Chief.”','Say “repeat” to hear the question again, “why” for the reference and explanation, “stop” to end.','If it stops listening, tap “Listen again” or tap the answer. Some phones need one tap to allow the microphone the first time.','The phone must stay unlocked; the app asks it to keep the screen on.'].map(t=>el('li',{text:t})))))}
 
 /* =====================================================================
    views-b.js — sessions and results, cards, flashcards, confusable drills, scenarios,
@@ -1714,7 +1725,7 @@ function vHelp(){const S=(h,items)=>el('section',{class:'card'},el('h2',{text:h}
   S('Today',['One button: it builds a session from what is fading, what is new, and a couple of confusable pairs. Twenty questions, about ten minutes.','Under “More ways to study”: fading only, build your own, timed simulation, section 2 scenarios, drills.']),
   S('Learn',['The manuals: full text of both manuals with search. Every “Reference” line in the app links to its section.','First pass walks every topic once — card, then a five-question quiz — and remembers where you stopped.','Field cards: when it applies, key numbers, officer decisions, traps, and the manual’s exact sentences. Read aloud is on every card.']),
   S('Progress',['Knowledge today and the exam-day projection, study days this week, topics by stage, your weakest topics, and simulation results.','Your data shows the model’s settings and any question’s history. How this works explains the science.']),
-  S('Hands-free',['Under Learn → Hands-free (or “More ways to study”): the app reads each question and its choices, you say the letter — “alpha, bravo, charlie, delta” is most reliable — or the answer itself, it reads the feedback and moves on. Say “repeat,” “why,” or “stop.”','Voice first pass reads the topic’s card (or the full section), quizzes it, and offers the next topic.','Needs Chrome, Edge or Safari, the microphone allowed, and the screen unlocked. Firefox can listen but not hear you.']),
+  S('Hands-free',['On iPhone, use a Safari tab for voice mode — the installed home-screen app can read aloud but Apple doesn’t let it hear you. The Hands-free screen has an “Open in Safari” button.','Under Learn → Hands-free (or “More ways to study”): the app reads each question and its choices, you say the letter — “alpha, bravo, charlie, delta” is most reliable — or the answer itself, it reads the feedback and moves on. Say “repeat,” “why,” or “stop.”','Voice first pass reads the topic’s card (or the full section), quizzes it, and offers the next topic.','Needs Chrome, Edge or Safari, the microphone allowed, and the screen unlocked. Firefox can listen but not hear you.']),
   S('On every question',['Type it: once a fact is solid, it comes back as a blank to type. Numbers grade themselves; for phrases the manual’s wording appears and you confirm. Typed answers count as full recall.','On a computer: keys 1–4 or A–D answer, Enter goes to the next question.','Guessed?: tap it when you weren’t sure. Optional, and you can hide it in Settings.','✎ notes stay with the question. Every answer shows the SOP or section it came from.','Record progress: switch it off at the bottom of a session to practice without it counting.']),
   el('p',{class:'fine',text:'The material follows the SOP Manual (rev. 07/15/2026) and the Systems Manual with its 2026 revisions.'}))}
 
@@ -1728,7 +1739,7 @@ document.addEventListener('keydown',e=>{if(VIEW!=='session'||!SES||SES.done)retu
  if(/^[1-4]$/.test(e.key)||/^[a-d]$/i.test(e.key)){const i=/^[1-4]$/.test(e.key)?+e.key-1:'abcd'.indexOf(e.key.toLowerCase());if(isConf(id)){const b=document.querySelectorAll('.bucket')[i];if(b&&!b.disabled)b.click()}else if(!isTyped(id)){const o=document.querySelectorAll('.opt')[i];if(o)o.click()}e.preventDefault()}
  else if(e.key==='Enter'||e.key===' '){const n=document.querySelector('.nav .btn.primary');if(n&&!n.disabled){n.click();e.preventDefault()}}});
 try{if(window.speechSynthesis){loadVoices();window.speechSynthesis.onvoiceschanged=()=>{loadVoices();if(VIEW==='settings')render()}}}catch(e){}
-testLocal();loadLocal();if(migrate())saveLocal();rebuild();render();if(FB)initFirebase();else initRemote();
+testLocal();loadLocal();if(migrate())saveLocal();rebuild();if(/[?&]voice=1/.test(location.search)){TAB='learn';VIEW='voicemenu';try{history.replaceState(null,'',location.pathname)}catch(e){}}render();if(FB)initFirebase();else initRemote();
 
 })();
 </script>
