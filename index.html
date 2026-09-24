@@ -129,6 +129,7 @@ details.more{margin:14px 0}details.more summary{cursor:pointer;font:600 15px var
 .vstatus{display:flex;align-items:center;gap:10px;font:600 16px var(--body);padding:12px 14px;border:1.5px solid var(--rule);border-radius:8px;margin:10px 0;background:var(--sheet)}.vdot{width:14px;height:14px;border-radius:50%;background:var(--rule);flex:none}
 .vstatus.listening{border-color:var(--red)}.vstatus.listening .vdot{background:var(--red);animation:pulse 1s infinite}.vstatus.speaking .vdot,.vstatus.feedback .vdot{background:var(--green)}.vstatus.needtap{border-color:var(--amber)}.vstatus.needtap .vdot{background:var(--amber)}
 @keyframes pulse{0%{transform:scale(1);opacity:1}50%{transform:scale(1.4);opacity:.6}100%{transform:scale(1);opacity:1}}.vctl .btn{flex:1}
+pre.diag{font:12px/1.35 ui-monospace,Menlo,monospace;white-space:pre-wrap;word-break:break-word;background:var(--paper);padding:8px;border-radius:6px;max-height:260px;overflow:auto}
 @media (max-width:520px){.count .big{font-size:68px}.opt{grid-template-columns:20px 22px 1fr;gap:0 7px}}
 @media (prefers-reduced-motion:reduce){*{transition:none!important}}
 </style>
@@ -1434,7 +1435,9 @@ function vManual(){loadManual();const q=MQ.trim().toLowerCase();
    Built on the browser's speech synthesis and speech recognition (Chrome, Edge, Safari; not Firefox).
    ===================================================================== */
 const SR=window.SpeechRecognition||window.webkitSpeechRecognition||null;
-let VO=null, REC=null, WAKE=null, VOT=null;
+let VO=null, REC=null, WAKE=null, VOT=null, MIC=null;
+const VLOG=[];function vlog(m){const t=((now()-((VO&&VO.t0)||now()))/1000).toFixed(2);VLOG.push(t+'s '+m);if(VLOG.length>400)VLOG.shift()}
+function diagText(){return['CFD voice log',navigator.userAgent,'standalone: '+(window.navigator.standalone||matchMedia('(display-mode: standalone)').matches),'SpeechRecognition: '+(window.SpeechRecognition?'std':window.webkitSpeechRecognition?'webkit':'none'),'voices: '+((window.speechSynthesis&&window.speechSynthesis.getVoices().length)||0),'mic stream: '+(MIC?'held':'none'),''].concat(VLOG).join('\n')}
 const LETTERS=[['a','hey','eh','ay','ayy','alpha','one','first','1','answer a','a.'],['b','be','bee','bravo','two','to','too','second','2','answer b','b.'],['c','see','sea','si','cee','charlie','three','third','3','answer c','c.'],['d','dee','the','delta','four','for','fourth','4','answer d','d.']];
 const CMD=[[/^(next|skip|continue|go on|move on|okay next|ok next)$/,'next'],[/^(repeat|again|say that again|say again|repeat the question|read it again)$/,'repeat'],[/^(options|choices|read the options|read the choices|answers)$/,'options'],[/^(stop|end|end session|quit|pause|stop session|i'm done|im done|done)$/,'stop'],[/^(why|explain|explanation|reference|source|tell me why)$/,'why'],[/^(yes|yeah|yep|correct|right|i knew it|i had it|got it)$/,'yes'],[/^(no|nope|missed|missed it|wrong|i missed it)$/,'no']];
 function parseHeard(alts,opts){for(const raw of alts){const t=norm(raw).replace(/\.$/,'');if(!t)continue;for(const[re,c]of CMD)if(re.test(t))return{cmd:c};
@@ -1450,27 +1453,38 @@ document.addEventListener('visibilitychange',()=>{if(document.visibilityState===
 /* speak text in sentence-sized chunks (long utterances get cut off on some phones), then call cb */
 function say(text,cb){const S=window.speechSynthesis;if(!S||!VO){if(cb)cb();return}stopListen();S.cancel();VO.phase='speaking';VO.saying=text;render();
  const chunks=String(text).replace(/\s+/g,' ').match(/[^.!?;:]+[.!?;:]?/g)||[text];let i=0;const gen=VO.gen;
- const next=()=>{if(!VO||VO.gen!==gen||VO.done)return;if(i>=chunks.length){if(cb)cb();return}const u=new SpeechSynthesisUtterance(chunks[i++].trim());applyVoice(u);u.onend=next;u.onerror=next;S.speak(u)};next()}
-function stopListen(){clearTimeout(VOT);if(REC){try{REC.onresult=null;REC.onend=null;REC.onerror=null;REC.abort()}catch(e){}REC=null}}
+ vlog('say: '+chunks.length+' chunks, '+text.length+' chars');
+ const next=()=>{if(!VO||VO.gen!==gen||VO.done)return;if(i>=chunks.length){vlog('say done');if(cb)cb();return}const u=new SpeechSynthesisUtterance(chunks[i++].trim());applyVoice(u);u.onend=next;u.onerror=e=>{vlog('tts error '+(e&&e.error));next()};S.speak(u)};next()}
+function stopListen(){clearTimeout(VOT);if(REC){try{REC.onresult=null;REC.onend=null;REC.onerror=null;REC.onstart=null;REC.abort()}catch(e){}REC=null}}
 /* listen once; cb gets an array of transcript alternatives, or null on silence/error */
-function listen(cb,ms){if(!SR||!VO){cb(null);return}stopListen();const gen=VO.gen;VO.phase='listening';VO.heard='';render();let got=false;
- try{REC=new SR();REC.lang='en-US';REC.continuous=false;REC.interimResults=false;REC.maxAlternatives=5;
-  REC.onresult=e=>{got=true;const alts=[];for(const r of e.results)for(let j=0;j<r.length;j++)alts.push(r[j].transcript);if(VO&&VO.gen===gen){VO.heard=alts[0]||'';render();stopListen();cb(alts)}};
-  REC.onerror=e=>{if(VO&&VO.gen===gen&&!got){stopListen();cb(e.error==='not-allowed'?'denied':null)}};
-  REC.onend=()=>{if(VO&&VO.gen===gen&&!got){stopListen();cb(null)}};REC.start();
-  VOT=setTimeout(()=>{if(VO&&VO.gen===gen&&!got){stopListen();cb(null)}},ms||9000)}catch(e){cb(null)}}
+function listen(cb,ms){if(!SR||!VO){cb(null);return}stopListen();const gen=VO.gen;VO.phase='listening';VO.heard='';render();let got=false,starts=0;const t0=now();const limit=ms||9000;
+ const finish=v=>{if(got||!VO||VO.gen!==gen)return;got=true;stopListen();cb(v)};
+ const start=()=>{if(got||!VO||VO.gen!==gen)return;if(starts>=4||now()-t0>limit){vlog('listen: giving up after '+starts+' starts');finish(null);return}starts++;const ts=now();
+  try{REC=new SR();REC.lang='en-US';REC.continuous=true;REC.interimResults=true;REC.maxAlternatives=5;
+   REC.onstart=()=>vlog('rec start #'+starts);REC.onaudiostart=()=>vlog('rec audiostart');REC.onsoundstart=()=>vlog('rec soundstart');REC.onspeechstart=()=>vlog('rec speechstart');REC.onspeechend=()=>vlog('rec speechend');
+   REC.onresult=e=>{const alts=[];let fin=false;for(let i=0;i<e.results.length;i++){const r=e.results[i];if(r.isFinal)fin=true;for(let j=0;j<r.length;j++)alts.push(r[j].transcript)}
+    vlog('rec result '+(fin?'final':'interim')+': '+JSON.stringify(alts.slice(0,3)));if(VO&&VO.gen===gen){VO.heard=alts[0]||'';render()}
+    if(fin||alts.some(a=>norm(a).length>=3))finish(alts)};
+   REC.onerror=e=>{vlog('rec error: '+(e&&e.error));if(e&&e.error==='not-allowed'){finish('denied');return}if(e&&(e.error==='no-speech'||e.error==='aborted'||e.error==='network'))setTimeout(start,250)};
+   REC.onend=()=>{const dt=now()-ts;vlog('rec end after '+dt+' ms');if(got||!VO||VO.gen!==gen)return;if(now()-t0<limit)setTimeout(start,dt<1500?300*starts:150);else finish(null)};
+   REC.start()}catch(e){vlog('rec start threw: '+(e&&e.message));setTimeout(()=>finish(null),100)}};
+ if(starts===0&&VO.quick)VO.quick=0;
+ clearTimeout(VOT);VOT=setTimeout(()=>{vlog('listen: window over');finish(null)},limit+2500);
+ setTimeout(start,VO.quick?50:450)}   // a short gap after speech so the phone’s audio session can switch from playback to recording
 /* ---------- the loops ---------- */
+async function holdMic(){try{if(MIC||!navigator.mediaDevices||!navigator.mediaDevices.getUserMedia)return;MIC=await navigator.mediaDevices.getUserMedia({audio:true});vlog('mic stream acquired')}catch(e){vlog('mic stream failed: '+(e&&e.name))}}
+function dropMic(){try{if(MIC){MIC.getTracks().forEach(t=>t.stop());MIC=null}}catch(e){}}
 function startVoice(ids,opt){if(!window.speechSynthesis){toast('This browser can’t read aloud.');return}ids=ids.filter(id=>!isNB(id));if(!ids.length){toast('No questions to read.');return}
- VO=Object.assign({ids,i:0,right:0,ans:{},missed:[],phase:'idle',heard:'',tries:0,gen:1,record:true,title:'Voice session',fp:null,log:[]},opt||{});wakeOn();go('voice');if(VO.intro)say(VO.intro,()=>readQ());else readQ()}
+ VO=Object.assign({ids,i:0,right:0,ans:{},missed:[],phase:'idle',heard:'',tries:0,gen:1,record:true,title:'Voice session',fp:null,log:[],t0:now()},opt||{});VLOG.length=0;vlog('session start, '+ids.length+' items');wakeOn();holdMic();go('voice');if(VO.intro)say(VO.intro,()=>readQ());else readQ()}
 function voOpts(id){return isConf(id)?CI[id].s.b:BY[id].o}
 function readQ(full){const V=VO;if(!V||V.done)return;V.gen++;const id=V.ids[V.i];const opts=voOpts(id);const stem=isConf(id)?CI[id].x.x+'. Which is it?':BY[id].q.replace(/_____/g,'blank');
  const text=(full===false?'':`Question ${V.i+1}. `+stem+' ')+opts.map((o,i)=>`${'ABCD'[i]}. ${o}.`).join(' ');V.tries=0;say(text,()=>askAnswer())}
 function askAnswer(){const V=VO;if(!V||V.done)return;const id=V.ids[V.i];const opts=voOpts(id);
  listen(alts=>{if(!VO||VO.done)return;if(alts==='denied'){V.phase='needtap';V.note='Microphone blocked. Tap an answer below, or allow the microphone in the browser settings.';render();return}
   const r=alts?parseHeard(alts,opts):null;
-  if(!r){V.tries++;if(V.tries>=3){V.phase='needtap';V.note='Didn’t catch that. Tap an answer, or say “repeat.”';render();return}say(V.tries===1?'Say A, B, C or D, or the answer.':'Say alpha, bravo, charlie or delta.',()=>askAnswer());return}
+  if(!r){V.tries++;vlog('no usable answer, try '+V.tries);if(V.tries>=3){V.phase='needtap';V.note='Didn’t catch that. Tap an answer, or tap “Listen again.”';render();return}say(V.tries===1?'Say alpha, bravo, charlie or delta, or the answer.':'Say alpha, bravo, charlie or delta.',()=>askAnswer());return}
   if(r.cmd==='repeat'){readQ();return}if(r.cmd==='options'){readQ(false);return}if(r.cmd==='stop'){endVoice();return}if(r.cmd==='next'){skipQ();return}if(r.cmd==='why'||r.cmd==='yes'||r.cmd==='no'){say('Answer first. Say A, B, C or D.',()=>askAnswer());return}
-  answerVoice(id,r.idx)})}
+  vlog('answer heard: '+'ABCD'[r.idx]);answerVoice(id,r.idx)})}
 function answerVoice(id,i){const V=VO;if(!V||V.done||V.ans[id]!==undefined)return;V.gen++;stopListen();const ok=i===correctOf(id);V.ans[id]=i;if(ok)V.right++;else V.missed.push(id);
  if(V.record)recordAnswer(id,ok?'r':'w');const opts=voOpts(id);const q=BY[id];const expl=isConf(id)?(ok?(CI[id].x.w||''):confExplain(CI[id].x,i,opts)+' '+(CI[id].x.w||'')):q.e;
  V.expl=expl;V.phase='feedback';render();const fb=(ok?'Correct. ':`Not quite. The answer is ${'ABCD'[correctOf(id)]}, ${opts[correctOf(id)]}. `)+expl;
@@ -1484,7 +1498,7 @@ function finishVoice(){const V=VO;if(!V||V.done)return;V.done=true;V.phase='done
  if(V.fp){(ST.s.fp=ST.s.fp||{})[V.fp]=DAYNUM();ST.s.u=now();queueSave()}render();
  const tot=V.ids.length;const txt=`That’s the end. ${V.right} of ${tot} right.`+(V.fp&&fpNext()?' Say next for the next topic, or stop.':'');
  say(txt,()=>{if(V.fp&&fpNext())listen(alts=>{const r=alts?parseHeard(alts,[]):null;if(r&&r.cmd==='next')voiceFpNext();else if(r&&r.cmd==='stop')endVoice()},7000)})}
-function endVoice(){stopListen();if(window.speechSynthesis)window.speechSynthesis.cancel();if(VO){VO.done=true;VO.phase='done'}wakeOff();render()}
+function endVoice(){stopListen();if(window.speechSynthesis)window.speechSynthesis.cancel();if(VO){VO.done=true;VO.phase='done'}wakeOff();dropMic();vlog('session ended');render()}
 /* ---------- voice first pass: card (or full section), then the quiz ---------- */
 function voiceFpNext(){const k=fpNext();if(!k){toast('First pass complete.');endVoice();return}voiceTopic(k,ST.s.vfull?'full':'card',true)}
 function voiceTopic(k,how,fp){const c=CARDBY[k];let qs=QS.filter(q=>q.k===k&&!q.v);if(!qs.length&&c&&c.s){const ks=patKeys(c);qs=QS.filter(q=>ks.includes(q.k)&&!q.v)}
@@ -1498,10 +1512,12 @@ function vVoice(){const V=VO;if(!V)return el('main',{class:'wrap'},el('p',{class
  const canTap=V.phase==='listening'||V.phase==='needtap';
  return el('main',{class:'wrap voice'},el('div',{class:'shead'},el('div',{},el('div',{class:'stitle',text:V.title}),el('div',{class:'muted',text:V.done?`${V.right} of ${V.ids.length} right`:`Question ${V.i+1} of ${V.ids.length}`}))),
   el('div',{class:'vstatus '+V.phase},el('span',{class:'vdot'}),el('span',{text:status})),V.heard?el('p',{class:'fine',text:'Heard: “'+V.heard+'”'}):null,
-  V.done?el('div',{class:'row'},V.fp&&fpNext()?el('button',{class:'btn primary big',onclick:voiceFpNext},'Next topic: '+tname(fpNext())):null,el('button',{class:'btn',onclick:()=>{const ids=V.ids;endVoice();startVoice(shuffle(ids),{title:V.title,record:V.record})}},'Again'),el('button',{class:'btn',onclick:()=>{endVoice();VO=null;setTab('today')}},'Done')):
+  V.done?[el('div',{class:'row'},V.fp&&fpNext()?el('button',{class:'btn primary big',onclick:voiceFpNext},'Next topic: '+tname(fpNext())):null,el('button',{class:'btn',onclick:()=>{const ids=V.ids;endVoice();startVoice(shuffle(ids),{title:V.title,record:V.record})}},'Again'),el('button',{class:'btn',onclick:()=>{endVoice();VO=null;setTab('today')}},'Done')),diagBox()]:
   [id?el('article',{class:'qcard'},isConf(id)?el('p',{class:'qtext',text:CI[id].x.x}):qText(q),el('div',{class:'opts'},opts.map((o,i)=>{const b=el('button',{class:'opt',disabled:!canTap,onclick:()=>{V.gen++;stopListen();answerVoice(id,i)}},el('span',{class:'let',text:'ABCD'[i]}),el('span',{class:'box',html:CHECK}),el('span',{class:'t',text:o}));if(V.ans[id]!==undefined){if(i===correctOf(id))b.classList.add('right');else if(V.ans[id]===i)b.classList.add('wrong')}return b})),V.phase==='feedback'&&V.expl?el('div',{class:'fb'+(V.ans[id]===correctOf(id)?'':' miss')},el('p',{text:V.expl})):null):null,
+   V.phase==='needtap'?el('button',{class:'btn primary big',onclick:()=>{V.gen++;V.tries=0;V.quick=1;askAnswer()}},'Tap, then say your answer'):null,
    el('div',{class:'row vctl'},el('button',{class:'btn',onclick:()=>{V.gen++;stopListen();readQ()}},'Repeat'),el('button',{class:'btn',onclick:()=>{V.gen++;stopListen();if(V.ans[id]!==undefined)nextVoice();else skipQ()}},'Next'),V.phase==='speaking'||V.phase==='feedback'?el('button',{class:'btn',onclick:()=>{V.gen++;window.speechSynthesis.cancel();if(V.ans[id]!==undefined)afterFeedback();else askAnswer()}},'Skip reading'):el('button',{class:'btn',onclick:()=>{V.gen++;askAnswer()}},'Listen again'),el('button',{class:'btn danger',onclick:()=>{endVoice()}},'Stop')),
-   el('p',{class:'fine',text:'Say the letter (or “alpha, bravo, charlie, delta”, or one to four), or say the answer in your own words. After the feedback it moves on by itself; say “repeat,” “why,” or “stop” to change that. Keep the screen on.'})])}
+   el('p',{class:'fine',text:'Say the letter (or “alpha, bravo, charlie, delta”, or one to four), or say the answer in your own words. After the feedback it moves on by itself; say “repeat,” “why,” or “stop” to change that. Keep the screen on.'}),diagBox()])}
+function diagBox(){return el('details',{class:'hint why diag'},el('summary',{},'Troubleshooting log'),el('div',{},el('pre',{class:'diag',text:diagText()}),el('div',{class:'row'},el('button',{class:'btn small',onclick:()=>{const t=diagText();try{navigator.clipboard.writeText(t).then(()=>toast('Log copied'),()=>toast('Select the log text and copy it'))}catch(e){toast('Select the log text and copy it')}}},'Copy log'),el('button',{class:'btn small',onclick:()=>{const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([diagText()],{type:'text/plain'}));a.download='cfd-voice-log.txt';document.body.appendChild(a);a.click();setTimeout(()=>a.remove(),1000)}},'Save log'))))}
 function vVoiceMenu(){const ok=voiceSupported();const c=stageCounts();
  return el('main',{class:'wrap'},el('h1',{text:'Hands-free'}),el('p',{class:'muted',text:'The app reads a question and its choices, you answer out loud, it reads the feedback and moves on. Good for the drive to work — keep the phone unlocked and use the car’s microphone if you have it.'}),
   ok?null:el('div',{class:'card warn'},el('p',{text:window.speechSynthesis?'This browser can read aloud but can’t listen. Use Chrome, Edge or Safari for voice answers; here you can still listen and tap.':'This browser can’t read aloud.'})),
