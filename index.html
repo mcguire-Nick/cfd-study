@@ -976,6 +976,7 @@ const SCEN2=[
 SCEN.push(...SCEN2);
 
 (function(){'use strict';
+const BUILD='2026-09-24 03:48';
 /* =====================================================================
    CFD Lieutenant Study Tool — core.js
    Data tables, storage + sync, the memory model, scheduling, projections.
@@ -1355,6 +1356,7 @@ function vSettings(){const code=()=>btoa(unescape(encodeURIComponent(JSON.string
   el('div',{class:'card'},el('h2',{text:'Backup code'}),el('p',{class:'fine',text:'A copy of all progress, notes and settings you can keep anywhere or paste into another device.'}),ta,el('button',{class:'btn small',onclick:()=>{ta.select();try{navigator.clipboard.writeText(ta.value);toast('Copied')}catch(e){document.execCommand&&document.execCommand('copy')}}},'Copy code')),
   el('div',{class:'card'},el('h2',{text:'Restore from a code'}),imp,confirmBtn('Restore','Tap again: this merges into current progress',()=>{try{mergeIn(JSON.parse(decodeURIComponent(escape(atob(imp.value.trim())))));queueSave();toast('Restored');setTab('today')}catch(e){toast('That code didn’t work')}})),
   el('div',{class:'card links'},el('button',{class:'link',onclick:()=>go('how')},'How this works'),el('button',{class:'link',onclick:()=>go('help')},'How to use the app'),el('button',{class:'link',onclick:()=>go('data')},'Your data')),
+  el('div',{class:'card'},el('h2',{text:'Version'}),el('p',{class:'fine',text:'Build '+BUILD+'. If the app looks out of date after an upload, tap Reload: it clears the app’s cached copy and fetches the current one. Progress is not affected.'}),el('button',{class:'btn small',onclick:async()=>{try{if('caches' in window){const ks=await caches.keys();await Promise.all(ks.map(k=>caches.delete(k)))}if(navigator.serviceWorker){const rs=await navigator.serviceWorker.getRegistrations();await Promise.all(rs.map(r=>r.update()))}}catch(e){}location.reload()}},'Reload the app')),
   el('div',{class:'card'},el('h2',{text:'Reset'}),confirmBtn('Clear all progress','Tap again to erase everything',()=>{ST=JSON.parse(JSON.stringify(DEF));ST.s.u=now();rebuild();queueSave();setTab('today')},'btn danger')))}
 function vAccount(){const box=el('main',{class:'wrap'},el('h1',{text:'Sync across devices'}));
  if(USER){box.append(el('div',{class:'card'},el('p',{text:'Signed in as '+(USER.email||'your account')+'. Progress and notes sync automatically on every device where you sign in.'}),el('button',{class:'btn',onclick:()=>AUTH.signOut().then(()=>toast('Signed out. Progress stays on this device.'))},'Sign out')));return box}
