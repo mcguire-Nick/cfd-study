@@ -1441,7 +1441,8 @@ function diagText(){return['CFD voice log',navigator.userAgent,'standalone: '+(w
 const LETTERS=[['a','hey','eh','ay','ayy','alpha','one','first','1','answer a','a.'],['b','be','bee','bravo','two','to','too','second','2','answer b','b.'],['c','see','sea','si','cee','charlie','three','third','3','answer c','c.'],['d','dee','the','delta','four','for','fourth','4','answer d','d.']];
 const CMD=[[/^(next|skip|continue|go on|move on|okay next|ok next)$/,'next'],[/^(repeat|again|say that again|say again|repeat the question|read it again)$/,'repeat'],[/^(options|choices|read the options|read the choices|answers)$/,'options'],[/^(stop|end|end session|quit|pause|stop session|i'm done|im done|done)$/,'stop'],[/^(why|explain|explanation|reference|source|tell me why)$/,'why'],[/^(yes|yeah|yep|correct|right|i knew it|i had it|got it)$/,'yes'],[/^(no|nope|missed|missed it|wrong|i missed it)$/,'no']];
 function parseHeard(alts,opts){for(const raw of alts){const t=norm(raw).replace(/\.$/,'');if(!t)continue;for(const[re,c]of CMD)if(re.test(t))return{cmd:c};
-  for(let i=0;i<Math.min(4,opts.length);i++){if(LETTERS[i].includes(t)||LETTERS[i].some(w=>t===('answer '+w)||t===('letter '+w)||t===(w+' is the answer')))return{idx:i}}}
+  for(let i=0;i<Math.min(4,opts.length);i++){if(LETTERS[i].includes(t)||LETTERS[i].some(w=>t===('answer '+w)||t===('letter '+w)||t===(w+' is the answer')))return{idx:i}}
+  const nato=['alpha','bravo','charlie','delta'];const pi=nato.findIndex(w=>t.length>=3&&w.startsWith(t)&&w!==t);if(pi>=0&&pi<opts.length)return{idx:pi}}
  // fall back to matching the words of the answer itself
  let best=-1,bs=0,second=0;const words=s=>new Set(norm(s).split(' ').filter(w=>w.length>2));
  for(const raw of alts){const T=words(raw);if(!T.size)continue;opts.forEach((o,i)=>{const O=words(o);let inter=0;T.forEach(w=>{if(O.has(w))inter++});const s=inter/Math.max(2,Math.min(T.size,O.size));if(s>bs){second=bs;bs=s;best=i}else if(s>second)second=s})}
@@ -1457,14 +1458,14 @@ function say(text,cb){const S=window.speechSynthesis;if(!S||!VO){if(cb)cb();retu
  const next=()=>{if(!VO||VO.gen!==gen||VO.done)return;if(i>=chunks.length){vlog('say done');if(cb)cb();return}const u=new SpeechSynthesisUtterance(chunks[i++].trim());applyVoice(u);u.onend=next;u.onerror=e=>{vlog('tts error '+(e&&e.error));next()};S.speak(u)};next()}
 function stopListen(){clearTimeout(VOT);if(REC){try{REC.onresult=null;REC.onend=null;REC.onerror=null;REC.onstart=null;REC.abort()}catch(e){}REC=null}}
 /* listen once; cb gets an array of transcript alternatives, or null on silence/error */
-function listen(cb,ms){if(!SR||!VO){cb(null);return}stopListen();const gen=VO.gen;VO.phase='listening';VO.heard='';render();let got=false,starts=0;const t0=now();const limit=ms||9000;
+function listen(cb,ms,accept){if(!SR||!VO){cb(null);return}stopListen();const gen=VO.gen;VO.phase='listening';VO.heard='';render();let got=false,starts=0;const t0=now();const limit=ms||9000;
  const finish=v=>{if(got||!VO||VO.gen!==gen)return;got=true;stopListen();cb(v)};
  const start=()=>{if(got||!VO||VO.gen!==gen)return;if(starts>=4||now()-t0>limit){vlog('listen: giving up after '+starts+' starts');finish(null);return}starts++;const ts=now();
   try{REC=new SR();REC.lang='en-US';REC.continuous=true;REC.interimResults=true;REC.maxAlternatives=5;
    REC.onstart=()=>vlog('rec start #'+starts);REC.onaudiostart=()=>vlog('rec audiostart');REC.onsoundstart=()=>vlog('rec soundstart');REC.onspeechstart=()=>vlog('rec speechstart');REC.onspeechend=()=>vlog('rec speechend');
    REC.onresult=e=>{const alts=[];let fin=false;for(let i=0;i<e.results.length;i++){const r=e.results[i];if(r.isFinal)fin=true;for(let j=0;j<r.length;j++)alts.push(r[j].transcript)}
     vlog('rec result '+(fin?'final':'interim')+': '+JSON.stringify(alts.slice(0,3)));if(VO&&VO.gen===gen){VO.heard=alts[0]||'';render()}
-    if(fin||alts.some(a=>norm(a).length>=3))finish(alts)};
+    if(fin)finish(alts);else if(accept&&accept(alts)){vlog('interim accepted');finish(alts)}};
    REC.onerror=e=>{vlog('rec error: '+(e&&e.error));if(e&&e.error==='not-allowed'){finish('denied');return}if(e&&(e.error==='no-speech'||e.error==='aborted'||e.error==='network'))setTimeout(start,250)};
    REC.onend=()=>{const dt=now()-ts;vlog('rec end after '+dt+' ms');if(got||!VO||VO.gen!==gen)return;if(now()-t0<limit)setTimeout(start,dt<1500?300*starts:150);else finish(null)};
    REC.start()}catch(e){vlog('rec start threw: '+(e&&e.message));setTimeout(()=>finish(null),100)}};
@@ -1484,14 +1485,14 @@ function askAnswer(){const V=VO;if(!V||V.done)return;const id=V.ids[V.i];const o
   const r=alts?parseHeard(alts,opts):null;
   if(!r){V.tries++;vlog('no usable answer, try '+V.tries);if(V.tries>=3){V.phase='needtap';V.note='Didn’t catch that. Tap an answer, or tap “Listen again.”';render();return}say(V.tries===1?'Say alpha, bravo, charlie or delta, or the answer.':'Say alpha, bravo, charlie or delta.',()=>askAnswer());return}
   if(r.cmd==='repeat'){readQ();return}if(r.cmd==='options'){readQ(false);return}if(r.cmd==='stop'){endVoice();return}if(r.cmd==='next'){skipQ();return}if(r.cmd==='why'||r.cmd==='yes'||r.cmd==='no'){say('Answer first. Say A, B, C or D.',()=>askAnswer());return}
-  vlog('answer heard: '+'ABCD'[r.idx]);answerVoice(id,r.idx)})}
+  vlog('answer heard: '+'ABCD'[r.idx]);answerVoice(id,r.idx)},9000,alts=>!!parseHeard(alts,opts))}
 function answerVoice(id,i){const V=VO;if(!V||V.done||V.ans[id]!==undefined)return;V.gen++;stopListen();const ok=i===correctOf(id);V.ans[id]=i;if(ok)V.right++;else V.missed.push(id);
  if(V.record)recordAnswer(id,ok?'r':'w');const opts=voOpts(id);const q=BY[id];const expl=isConf(id)?(ok?(CI[id].x.w||''):confExplain(CI[id].x,i,opts)+' '+(CI[id].x.w||'')):q.e;
  V.expl=expl;V.phase='feedback';render();const fb=(ok?'Correct. ':`Not quite. The answer is ${'ABCD'[correctOf(id)]}, ${opts[correctOf(id)]}. `)+expl;
  say(fb,()=>afterFeedback())}
 function afterFeedback(){const V=VO;if(!V||V.done)return;listen(alts=>{if(!VO||VO.done)return;const r=alts?parseHeard(alts,[]):null;
   if(r&&r.cmd==='repeat'){say(V.expl,()=>afterFeedback());return}if(r&&r.cmd==='why'){const id=V.ids[V.i];const src=isConf(id)?CI[id].x.src:BY[id].src;say('Reference: '+src.replace(/-/g,' dash ')+'. '+V.expl,()=>afterFeedback());return}
-  if(r&&r.cmd==='stop'){endVoice();return}nextVoice()},4500)}
+  if(r&&r.cmd==='stop'){endVoice();return}nextVoice()},4500,alts=>{const r=parseHeard(alts,[]);return!!(r&&r.cmd)})}
 function skipQ(){const V=VO;V.gen++;stopListen();nextVoice()}
 function nextVoice(){const V=VO;if(!V||V.done)return;V.gen++;stopListen();if(V.i<V.ids.length-1){V.i++;render();readQ();return}finishVoice()}
 function finishVoice(){const V=VO;if(!V||V.done)return;V.done=true;V.phase='done';stopListen();if(V.record){ST.s.lastMissed=V.missed.filter(id=>!isConf(id));ST.s.u=now();queueSave()}
