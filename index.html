@@ -985,7 +985,7 @@ const SCEN2=[
 SCEN.push(...SCEN2);
 
 (function(){'use strict';
-const BUILD='2026-09-27 01:47';
+const BUILD='2026-09-27 18:43';
 /* =====================================================================
    CFD Lieutenant Study Tool — core.js
    Data tables, storage + sync, the memory model, scheduling, projections.
@@ -1293,12 +1293,27 @@ function measuredCost(kind){const a=((ST.s.rt||{})[kind]||[]).slice().sort((x,y)
 const costOf=id=>{const k=id[0];return measuredCost(k)||COST_DEFAULT[k]||45};
 /* under 2 s is a mis-tap, over 5 min is a break */
 function recordTime(id,sec){if(!(sec>=2)||sec>300)return;const rt=ST.s.rt=ST.s.rt||{};const k=id[0];const a=rt[k]=rt[k]||[];a.push(Math.round(sec*10)/10);if(a.length>40)a.splice(0,a.length-40)}
-/* best item per fact: the exam's own format first, then recital, then typed recall, then statement checks (LITERATURE_REVIEW §3.4) */
+/* best item per fact: the exam's own format first, then typed recall, then statement checks (LITERATURE_REVIEW §3.4).
+   Paragraph recitals are OUT OF THE PLAN until their redesigned recall items ship (B-083, PKG-004, 27 Sep 2026): a fact's best item is its
+   best non-recital item, so FBEST and FOBJ hold the same items. Recitals stay available under Learn → Paragraph recitals (recitePool), and
+   their answers still update the facts they cover (the answer log and the model are unchanged). */
 const PRIO={T:0,V:1,P:2,K:3,N:3,W:3,S:5,C:6};
-const FBEST={};for(const f in FI){FBEST[f]=FI[f].slice().sort((a,b)=>(PRIO[a[0]]??9)-(PRIO[b[0]]??9))[0]}
 const FOBJ={};for(const f in FI){const o=FI[f].filter(id=>!isP(id)).sort((a,b)=>(PRIO[a[0]]??9)-(PRIO[b[0]]??9))[0];if(o)FOBJ[f]=o}   // best objective (non-recital) item per fact
-/* cost of studying a fact through its best item: a paragraph recital is shared by all its facts */
-const factCost=f=>{const id=FBEST[f];return isP(id)?costOf(id)/Math.max(1,PB[id].facts.length):costOf(id)};
+const FBEST=Object.assign({},FOBJ);   // B-083: never a recital
+/* Rules whose only study items are recitals are SET ASIDE from the plan and from the expected score until their new recall items ship
+   (decision B-084, 27 Sep 2026). They have no FBEST, so the planner and the daily session skip them; FALLIDS (the score domain) leaves them
+   out; the Plan card shows how many. */
+const SETASIDE=new Set(Object.keys(FI).filter(f=>FI[f].every(isP)));
+/* Learn → Paragraph recitals (optional, outside the plan). Every recital stays reachable (PKG-004 Rev B, A9-F1): paragraphs not yet recited
+   come first — those holding set-aside rules, then the rest — and after them every recited paragraph in order of its last recital, oldest
+   first, so repeated use cycles through all 1,209. Random within a group (one draw per paragraph). A paragraph counts as recited once any of
+   its rules has an R- entry: each rule belongs to one recital, and a recital logs every rule it covers. */
+function recitePool(n){const last={};ST.h.forEach(e=>{const p=String(e).split('|'),id=p[1],d=+p[0];if(id&&id.startsWith('R-')&&Number.isFinite(d)){const f=id.slice(2);if(!(last[f]>=d))last[f]=d}});
+ const key={};Object.keys(PB).forEach(id=>{const fs=PB[id].facts;let lr=null;fs.forEach(f=>{if(last[f]!=null&&(lr==null||last[f]>lr))lr=last[f]});
+  key[id]=[lr!=null?2:fs.some(f=>SETASIDE.has(f))?0:1,lr!=null?lr:0,Math.random()]});
+ return Object.keys(PB).sort((a,b)=>{const x=key[a],y=key[b];return x[0]-y[0]||x[1]-y[1]||x[2]-y[2]}).slice(0,n)}
+/* cost of studying a fact through its best item (B-083: never a recital, so the old shared-recital division no longer applies) */
+const factCost=f=>costOf(FBEST[f]);
 const FALL=(()=>{const out=[];FP.filter(k=>!k.startsWith('P-')).forEach(k=>{(FL[k]||[]).forEach(f=>{if(FBEST[f])out.push(f)});(DATA.fx||[]).filter(x=>x.startsWith('X-'+k.replace(' ','')+'-')).forEach(x=>{if(FBEST[x])out.push(x)})});return out})();
 const FWEIGHT=f=>areaW(KAR[factTopic(f)]||'');
 function factDueDay(m,day,sc){return day-m.l>m.s*sc}   // R < 0.9 exactly when t > S·scale, whatever the curve shape
@@ -1344,7 +1359,7 @@ function buildTodayF(maxItems,maxMin){maxItems=maxItems||40;maxMin=maxMin||12;co
      γ   : success without recall — P0, his measured first-try accuracy on unstudied questions (default 0.5 until 20 observations)
    The planner and the daily session choose whatever raises E[score] most per minute (marginal-gain policy).
    ===================================================================== */
-const FX=DATA.fx||[];const FALLIDS=(()=>{const out=[];for(const k in FL)FL[k].forEach(f=>out.push(f));return out.concat(FX)})();
+const FX=DATA.fx||[];const FALLIDS=(()=>{const out=[];for(const k in FL)FL[k].forEach(f=>out.push(f));return out.concat(FX).filter(f=>!SETASIDE.has(f))})();   // B-084: set-aside rules are outside the score domain until their new items ship
 const TAU=()=>{const t=+((ST.s.tau!=null)?ST.s.tau:1);return isNaN(t)?1:Math.max(0.5,Math.min(1,t))};
 let PI=null,PIKEY='';
 /* Facts that a person chose to write a question about carry twice the sampling weight of facts covered only by generated items:
@@ -1387,7 +1402,8 @@ function computePlanE(){const goal=(ST.s.goal||85)/100,wk=ST.s.wk||5;const d=DAY
  for(const n of cands){const r=simulateScore(n,wk,null,done);results[n]=r;best=r;if(r.score>=goal){need=n;break}}
  const pace=recentPaceMin();const atPace=pace?simulateScore(pace.min,pace.wk,null,done):null;const alt=need==null?{wk7:simulateScore(60,7,null,done).score}:null;
  return{day:d,goal,wk,need,max:best,results,pace,atPace,alt,days:examDay()-d,minutes:true,objective:'score'}}
-function planE(){const p=ST.s.ple;const d=DAYNUM();const key=JSON.stringify([ST.s.bw||{},ST.s.tau||1]);if(p&&p.day===d&&p.goal===(ST.s.goal||85)/100&&p.wk===(ST.s.wk||5)&&p.n===NLOG&&p.bw===key)return p.v;const v=computePlanE();ST.s.ple={day:d,goal:v.goal,wk:v.wk,n:NLOG,bw:key,v};return v}
+const PLANV=2;   // bump when the planner's logic changes, so a plan cached (and synced) by an older build is recomputed — PKG-004
+function planE(){const p=ST.s.ple;const d=DAYNUM();const key=JSON.stringify([ST.s.bw||{},ST.s.tau||1,PLANV]);if(p&&p.day===d&&p.goal===(ST.s.goal||85)/100&&p.wk===(ST.s.wk||5)&&p.n===NLOG&&p.bw===key)return p.v;const v=computePlanE();ST.s.ple={day:d,goal:v.goal,wk:v.wk,n:NLOG,bw:key,v};return v}
 function dailyTargetE(){const v=planE();return v.need==null?90:v.need}
 /* today's session under the same policy, on the real states */
 function buildTodayE(maxItems,maxMin){maxItems=maxItems||40;maxMin=maxMin||12;const ph=phase();const E=examDay(),d=DAYNUM(),pr=PARAM(),pi=factPi();
@@ -1396,7 +1412,7 @@ function buildTodayE(maxItems,maxMin){maxItems=maxItems||40;maxMin=maxMin||12;co
  const out=[],used=new Set();let sec=0,nS=0;const why={due:0,new:0,conf:0};
  const add=(id,kind)=>{if(!id||used.has(id)||out.length>=maxItems)return false;if(id[0]==='S'){if(nS>=Math.max(4,Math.floor(maxItems*0.5)))return false;nS++}used.add(id);out.push(id);sec+=costOf(id);why[kind]++;return true};
  const confQ=Object.keys(CI).filter(id=>!M[id]||rNow(id)<0.9).sort((a,b)=>(rExam(a)??0)-(rExam(b)??0));confQ.slice(0,2).forEach(id=>add(id,'conf'));
- greedyDay(st,d,E,maxMin*60,pr,fresh,0,(f,kind,id)=>{if(out.length<maxItems)add(id||FBEST[f],kind)},Math.max(3,Math.floor(maxItems*0.25)),Math.max(2,Math.floor(maxItems*0.15)));   // statement checks ≤ 25% of items (D2 revised); paragraph recitals ≤ ~15% of items so exam-format questions stay central
+ greedyDay(st,d,E,maxMin*60,pr,fresh,0,(f,kind,id)=>{if(out.length<maxItems)add(id||FBEST[f],kind)},Math.max(3,Math.floor(maxItems*0.25)),Math.max(2,Math.floor(maxItems*0.15)));   // statement checks ≤ 25% of items (D2 revised); the paragraph-recital cap (≤ ~15%) is inert while recitals are out of the plan (B-083)
  if(out.length<Math.min(10,maxItems)){QS.filter(q=>seen(q.id)).sort((a,b)=>rExam(a.id)-rExam(b.id)).forEach(q=>add(q.id,'due'))}
  return{ids:spread(out),why,min:Math.round(sec/60)}}
 
@@ -1418,7 +1434,7 @@ function header(title){const root=VIEW===ROOTS[TAB];return el('div',{class:'topb
 const HINTS={
  para:'Paragraph recital: recall a whole paragraph’s rules from its heading, then tick what you actually had. Free recall of a passage beats rereading and even concept mapping for later tests. Each ticked rule counts as recalled with a small discount for self-grading; each unticked one counts as a miss.',
  cover:'Cover the rest: every rule sentence that no regular question tests yet gets a light item — a typed key term, or a statement check where you say whether the sentence is the manual’s wording or has one thing changed. They exist so no part of the manual is invisible to the model; they count as weaker evidence than a full question.',
- score:'Expected exam score: every rule sentence in the manuals is weighted by how likely the exam is to ask about it (60% SOP, 40% Systems Manual, times your emphasis weights). For each one, the chance of a right answer is recall × transfer, plus your measured first-try rate on unstudied material when recall fails. Summing those gives the score the model expects. It is what the goal and the plan are set on.',
+ score:`Expected exam score: every rule sentence in the manuals${SETASIDE.size?` except, for now, the ${SETASIDE.size.toLocaleString()} rules whose only study item is a paragraph recital (set aside while recitals are redesigned; the Plan card shows them)`:''} is weighted by how likely the exam is to ask about it (60% SOP, 40% Systems Manual, times your emphasis weights). For each one, the chance of a right answer is recall × transfer, plus your measured first-try rate on unstudied material when recall fails. Summing those gives the score the model expects. It is what the goal and the plan are set on.`,
  material:'Material: the two manuals contain about 5,400 rule sentences (every sentence with shall, must, will, minimum, within, and the like). Each is a fact the exam could ask about. A fact is solid when any item that tests it has been recalled on three separate days and is still above 90%. Facts with no item yet can’t become solid, so this number is honest about coverage gaps as well as about memory.',
  know:'Knowledge today: the average chance, across all 1,320 questions, that you’d get each one right now. It drifts down between sessions as memory fades and climbs when you review.',
  proj:'Exam-day projection: the same estimate for exam day if you stopped studying now. It only rises with study, so it works as a goal. The range shows how much depends on how fast you personally forget.',
@@ -1476,6 +1492,7 @@ function vLearn(){const groups={};TKEYS.forEach(k=>{(groups[KAR[k]]=groups[KAR[k
   el('section',{class:'card'},el('div',{class:'arhead'},el('h2',{text:'The manuals'}),el('button',{class:'btn small',onclick:()=>go('manual')},'Open')),el('p',{class:'fine',text:'Full text of the SOP Manual and the Systems Manual (with the 2026 revisions), searchable. Every reference in the app links to its section.'})),
   el('section',{class:'card'},el('div',{class:'arhead'},el('h2',{text:'Hands-free'}),el('button',{class:'btn small primary',onclick:()=>go('voicemenu')},'Open')),el('p',{class:'fine',text:'Listen to a question, answer out loud, hear the feedback. Voice first pass reads a topic, then quizzes it.'})),
   el('section',{class:'card'},el('div',{class:'arhead'},el('h2',{text:'Cover the rest'}),hint('cover')),el('p',{class:'fine',text:`${coverCount().toLocaleString()} light items for rule sentences no regular question tests. Twenty at a time, typed key terms first.`}),el('button',{class:'btn primary',onclick:()=>startSession(coverPool(20),{title:'Cover the rest'})},'Cover the rest (20)')),
+  el('section',{class:'card'},el('div',{class:'arhead'},el('h2',{text:'Paragraph recitals'}),hint('para')),el('p',{class:'fine',text:`Optional — recitals are out of the daily plan while they are redesigned.${SETASIDE.size?` ${SETASIDE.size.toLocaleString()} rules have no other study item yet; their paragraphs come first until you have recited them.`:''} Answers are saved as usual.`}),el('button',{class:'btn',onclick:()=>startSession(recitePool(5),{title:'Paragraph recitals'})},'Recite (5)')),
   el('section',{class:'card'},el('h2',{text:'Drills'}),el('div',{class:'row'},el('button',{class:'btn',onclick:()=>startSession(typedPool(15,1),{title:'Protective equipment'})},`Protective equipment (${Object.values(NB).filter(x=>x.ppe).length})`),el('button',{class:'btn',onclick:()=>startSession(typedPool(15),{title:'Type the numbers'})},`Type the numbers (${Object.values(NB).filter(x=>!x.ppe&&!x.id.startsWith('K-')).length})`),el('button',{class:'btn',onclick:()=>{const ids=pick(QS.filter(q=>canType(q.id)),15,q=>(M[q.id]&&M[q.id].c>=3?3:0)+(due(q.id)?1:0)).map(q=>q.id);const t={};ids.forEach(id=>t[id]=1);startSession(ids,{title:'Type it',typed:t})}},'Type it (15)'),el('button',{class:'btn',onclick:()=>go('pairs')},'Confusable pairs'),el('button',{class:'btn',onclick:()=>startSession(pick(QS.filter(q=>q.v),20,q=>(seen(q.id)?0:2)+(due(q.id)?1:0)).map(q=>q.id),{title:'Word for word'})},'Word for word (20)'),el('button',{class:'btn',onclick:()=>{FLASH=null;go('flash')}},'Numbers flashcards'))),
   el('section',{class:'card'},el('h2',{text:'Patterns and shortcuts'}),el('p',{class:'fine',text:'Rules that cover dozens of SOPs at once. Start here — it cuts down what you have to memorize.'}),el('div',{class:'chips'},CARDS.filter(c=>c.k.startsWith('P-')).map(c=>el('button',{class:'chip star',onclick:()=>{CURCARD=c.k;go('card')}},c.t.replace('Pattern · ','')))),el('div',{class:'row'},el('button',{class:'btn small',onclick:()=>speakQueue(CARDS.filter(c=>c.k.startsWith('P-')).map(c=>c.k),'Patterns and shortcuts')},'Listen to all'))),
   AREAS.map(ar=>{const ks=groups[ar].sort();const written=ks.filter(k=>CARDBY[k]);return el('section',{class:'card'},el('div',{class:'arhead'},el('h2',{text:ar}),written.length?el('button',{class:'btn small',onclick:()=>speakQueue(written,ar)},'Listen ('+written.length+')'):null),el('div',{class:'chips'},ks.map(k=>{const st=topicSummary(k).stage;return el('button',{class:'chip'+(CARDBY[k]?' star':''),onclick:()=>{CURCARD=k;go('card')}},el('i',{class:'dot s-'+st,'aria-label':STAGE_LABEL[st]}),(CARDBY[k]?'★ ':'')+(TOP[k]||k).replace(/^(SOP|Systems)\s/,''))})))}),
@@ -1510,6 +1527,7 @@ function vProgress(){const {hi,lo}=band(),sm=hi,goal=(ST.s.goal||85)/100,wd=week
     :el('p',{text:`At ${v.wk} study days a week, even ${Object.keys(v.results).pop()} minutes a day reaches an expected score of about ${pct(v.max.score)} by ${exD}${v.alt&&v.alt.wk7!=null?` (about ${pct(v.alt.wk7)} with 7 days a week at 60 minutes)`:''}. A goal of ${Math.max(10,Math.floor(v.max.score*100/5)*5)}% is within reach, or add study days. Exam-emphasis weights (Settings) concentrate the plan on what is likely tested.`}),
     v.atPace?el('p',{class:'fine',text:`At your recent pace — about ${v.pace.min} minutes a day on ${v.pace.wk} day${v.pace.wk===1?'':'s'} a week — the expected score would be about ${pct(v.atPace.score)}.`}):null,
     r20?el('p',{class:'fine',text:`For scale: 20 minutes a day would reach about ${pct(r20.score)}.`}):null,
+    SETASIDE.size?el('p',{class:'fine',text:`${SETASIDE.size.toLocaleString()} rules are set aside from this plan and from the expected score for now: their only study item is a paragraph recital, and recitals are out of the plan while they are redesigned. They rejoin as their new recall items ship. You can still recite them under Learn → Paragraph recitals.`}):null,
     el('p',{class:'fine',text:`Each simulated day spends its minutes on whatever raises the expected score most per minute — a slipping fact or a new one. Minutes use your measured times per item (Your data). Change the goal, study days or exam emphasis in Settings; the plan re-runs every day.`}))})(),
   el('section',{class:'card'},el('div',{class:'arhead'},el('h2',{text:'Study days'}),hint('week')),el('div',{class:'dots big'},wd.map(x=>el('i',{class:x.on?'on':x.future?'fut':'',title:new Date(x.day*DAY).toLocaleDateString(undefined,{weekday:'short'})}))),el('p',{class:'fine',text:`${onN} of ${ST.s.wk||5} days this week${wh.tot?` · target met ${wh.hit} of the last ${wh.tot} week${wh.tot===1?'':'s'}`:''}. Change the target in Settings.`})),
   el('section',{class:'card'},el('h2',{text:'Topics'}),stageBar(c),stageLegend(c),el('div',{class:'row'},el('button',{class:'btn small',onclick:()=>go('map')},'Open progress map'),el('span',{class:'fine',text:`First pass: ${fpCount()} of ${FP.length}`}))),
@@ -1931,7 +1949,7 @@ function vHow(){const pr=PARAM(),fit=ST.s.fit;const sec=(t,ev,paras,refs)=>el('s
    'mod',['Every rule sentence belongs to a paragraph of the manual. Paragraph recitals ask you to recall a whole paragraph’s rules and tick the ones you had; each ticked rule counts as recalled (with a small discount, since you graded yourself). When you get any rule right, the other rules in the same paragraph get a small share of the credit — about a tenth — because testing part of a well-integrated passage has been shown to lift recall of the untested parts by roughly a tenth a day later. Both settings can be changed or switched off in Settings.'],
    'Chan, McDermott & Roediger 2006 (retrieval-induced facilitation); Karpicke & Blunt 2011 and McDaniel, Howard & Einstein 2009 (recall of passages); Rowland 2014 (recall formats).'),
   sec('The goal is an expected exam score',
-   'ours',['Every rule sentence in the manuals is given a probability of being asked — 60% of the weight to the SOPs and 40% to the Systems Manual, spread within each by the exam-emphasis weights. For each sentence the chance of a right answer is its recall probability on exam day times a transfer factor (the chance that recalling the fact answers the examiner’s wording), plus, when recall fails, your measured first-try rate on material you have not studied here. The weighted sum is the expected score. The goal is set on it, and both the plan and each session spend minutes on whatever raises it most per minute, whether that is a fact that has slipped or a new one.','The transfer factor is the one number here with no measurement yet: it is set to 1 with a cautious band at 0.8, and can be changed in Settings. Practice on one wording transfers only partly to another, so the low end of the band is the safer reading until timed simulations with fresh wordings pin it down.'],
+   'ours',[`Every rule sentence in the manuals${SETASIDE.size?` (except, for now, the ${SETASIDE.size.toLocaleString()} rules whose only study item is a paragraph recital, set aside from the score while recitals are redesigned; the Plan card shows them)`:''} is given a probability of being asked — 60% of the weight to the SOPs and 40% to the Systems Manual, spread within each by the exam-emphasis weights. For each sentence the chance of a right answer is its recall probability on exam day times a transfer factor (the chance that recalling the fact answers the examiner’s wording), plus, when recall fails, your measured first-try rate on material you have not studied here. The weighted sum is the expected score. The goal is set on it, and both the plan and each session spend minutes on whatever raises it most per minute, whether that is a fact that has slipped or a new one.`,'The transfer factor is the one number here with no measurement yet: it is set to 1 with a cautious band at 0.8, and can be changed in Settings. Practice on one wording transfers only partly to another, so the low end of the band is the safer reading until timed simulations with fresh wordings pin it down.'],
    'Pan & Rickard 2018 (transfer); Lindsey et al. 2014 and Settles & Meeder 2016 (model-driven scheduling toward retention at test).'),
   sec('What the projections are',
    'ours',['Knowledge today is the average, over all questions, of the chance you would get each one right now. The exam-day projection is the same average on the exam date if you stopped studying today. “Solid for exam day” is the share of questions projected at 90% or better. Questions you have never seen count at your measured first-try rate on new material.','The range on each number comes from how much people differ in the shape of their forgetting curve. The expected simulation score assumes 60% SOP and 40% Systems Manual, includes lucky guesses, and is shifted toward your real results after each timed simulation.'],
